@@ -21,8 +21,7 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.monijuro.PartnerLife",
-      "googleServicesFile": "./google-services.json"
+      "package": "com.monijuro.PartnerLife"
     },
     "web": {
       "favicon": "./assets/favicon.png"

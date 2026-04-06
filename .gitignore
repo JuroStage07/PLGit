@@ -33,6 +33,9 @@ yarn-error.*
 # local env files
 .env*.local
 
+# Firebase Android (contiene API key; no subir — ver google-services.example.json)
+google-services.json
+
 # typescript
 *.tsbuildinfo
 
