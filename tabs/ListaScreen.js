@@ -27,6 +27,7 @@ import {
   orderBy,
   updateDoc,
   deleteDoc,
+  getDocs,
 } from "firebase/firestore";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -92,6 +93,16 @@ export default function ListaScreen({ navigation }) {
   const sanitizeAmount = (t) => String(t || "").replace(/[^\d]/g, "");
   const groupId = profile?.groupId || "";
   const hasGroup = !!groupId;
+
+  const isAnyModalOpen =
+    isSavedItemsOpen ||
+    isCreateSavedItemOpen ||
+    isEditSavedItemOpen ||
+    isCreateListOpen ||
+    isListDetailOpen ||
+    isAddManualItemOpen ||
+    isAddFromSavedOpen ||
+    isEditListItemOpen;
 
   const fmtCRC = (n) => {
     const v = Number(n || 0);
@@ -221,11 +232,16 @@ export default function ListaScreen({ navigation }) {
     async (listId, items) => {
       if (!hasGroup || !listId) return;
 
-      const totalItems = items.length;
-      const checkedItems = items.filter((x) => !!x.checked).length;
+      const totalItems = items.reduce((acc, x) => acc + Number(x.quantity || 1), 0);
+      const checkedItems = items.reduce((acc, x) => {
+        if (x.checked) return acc + Number(x.quantity || 1);
+        return acc;
+      }, 0);
       const progress = totalItems ? Math.round((checkedItems / totalItems) * 100) : 0;
+
       const spentCRC = items.reduce((acc, x) => {
-        if (x.checked && typeof x.price === "number") return acc + x.price;
+        const qty = Number(x.quantity || 1);
+        if (x.checked && typeof x.price === "number") return acc + x.price * qty;
         return acc;
       }, 0);
 
@@ -243,29 +259,96 @@ export default function ListaScreen({ navigation }) {
     [hasGroup, groupId, user?.uid]
   );
 
+  const updateItemQuantity = useCallback(
+    async (item, delta) => {
+      if (!hasGroup || !selectedList?.id || !item?.id || !selectedList?.isDaily) return;
+
+      try {
+        const currentQty = Number(item.quantity || 1);
+        const nextQty = Math.max(1, currentQty + delta);
+
+        const itemRef = doc(
+          db,
+          "groups",
+          groupId,
+          "lists",
+          selectedList.id,
+          "items",
+          item.id
+        );
+
+        await updateDoc(itemRef, {
+          quantity: nextQty,
+          updatedAt: serverTimestamp(),
+          updatedBy: user?.uid || "",
+        });
+
+        const nextItems = selectedListItems.map((x) =>
+          x.id === item.id ? { ...x, quantity: nextQty } : x
+        );
+
+        await syncListMetrics(selectedList.id, nextItems);
+      } catch (e) {
+        Alert.alert("Error", e?.message || "No se pudo actualizar la cantidad.");
+      }
+    },
+    [hasGroup, selectedList?.id, selectedList?.isDaily, groupId, user?.uid, selectedListItems, syncListMetrics]
+  );
+
+  const clearSelectedList = useCallback(async () => {
+    if (!hasGroup || !selectedList?.id) return;
+
+    try {
+      const itemsColRef = collection(db, "groups", groupId, "lists", selectedList.id, "items");
+      const snap = await getDocs(itemsColRef);
+
+      const deletes = snap.docs.map((d) => deleteDoc(d.ref));
+      await Promise.all(deletes);
+
+      await syncListMetrics(selectedList.id, []);
+    } catch (e) {
+      Alert.alert("Error", e?.message || "No se pudo vaciar la lista.");
+    }
+  }, [hasGroup, groupId, selectedList?.id, syncListMetrics]);
+
   const filteredSavedItems = useMemo(() => {
     const q = String(savedSearch || "").trim().toLowerCase();
     if (!q) return savedItems;
     return savedItems.filter((x) => String(x.name || "").toLowerCase().includes(q));
   }, [savedItems, savedSearch]);
 
-  const completionForSelected = useMemo(() => {
-    const total = selectedListItems.length;
-    if (!total) return 0;
-    const done = selectedListItems.filter((x) => !!x.checked).length;
-    return Math.round((done / total) * 100);
+  const selectedTotalUnits = useMemo(() => {
+    return selectedListItems.reduce((acc, x) => acc + Number(x.quantity || 1), 0);
   }, [selectedListItems]);
+
+  const selectedCheckedUnits = useMemo(() => {
+    return selectedListItems.reduce((acc, x) => {
+      if (x.checked) return acc + Number(x.quantity || 1);
+      return acc;
+    }, 0);
+  }, [selectedListItems]);
+
+  const selectedPendingUnits = useMemo(() => {
+    return Math.max(0, selectedTotalUnits - selectedCheckedUnits);
+  }, [selectedTotalUnits, selectedCheckedUnits]);
+
+  const completionForSelected = useMemo(() => {
+    if (!selectedTotalUnits) return 0;
+    return Math.round((selectedCheckedUnits / selectedTotalUnits) * 100);
+  }, [selectedCheckedUnits, selectedTotalUnits]);
 
   const spentForSelected = useMemo(() => {
     return selectedListItems.reduce((acc, x) => {
-      if (x.checked && typeof x.price === "number") return acc + x.price;
+      const qty = Number(x.quantity || 1);
+      if (x.checked && typeof x.price === "number") return acc + x.price * qty;
       return acc;
     }, 0);
   }, [selectedListItems]);
 
   const totalSelectedPrice = useMemo(() => {
     return selectedListItems.reduce((acc, x) => {
-      if (typeof x.price === "number") return acc + x.price;
+      const qty = Number(x.quantity || 1);
+      if (typeof x.price === "number") return acc + x.price * qty;
       return acc;
     }, 0);
   }, [selectedListItems]);
@@ -518,6 +601,7 @@ export default function ListaScreen({ navigation }) {
       await addDoc(colRef, {
         name,
         price: Number.isFinite(price) ? price : null,
+        quantity: 1,
         checked: false,
         fromSavedItem: false,
         createdAt: serverTimestamp(),
@@ -530,6 +614,7 @@ export default function ListaScreen({ navigation }) {
           id: `tmp-${Date.now()}`,
           name,
           price: Number.isFinite(price) ? price : null,
+          quantity: 1,
           checked: false,
         },
       ];
@@ -562,6 +647,7 @@ export default function ListaScreen({ navigation }) {
         await addDoc(colRef, {
           name: savedItem.name || "",
           price: typeof savedItem.price === "number" ? savedItem.price : null,
+          quantity: 1,
           checked: false,
           fromSavedItem: true,
           sourceSavedItemId: savedItem.id,
@@ -575,6 +661,7 @@ export default function ListaScreen({ navigation }) {
             id: `tmp-${Date.now()}`,
             name: savedItem.name || "",
             price: typeof savedItem.price === "number" ? savedItem.price : null,
+            quantity: 1,
             checked: false,
             fromSavedItem: true,
             sourceSavedItemId: savedItem.id,
@@ -655,7 +742,11 @@ export default function ListaScreen({ navigation }) {
 
       const nextItems = selectedListItems.map((x) =>
         x.id === selectedListItem.id
-          ? { ...x, name, price: Number.isFinite(price) ? price : null }
+          ? {
+            ...x,
+            name,
+            price: Number.isFinite(price) ? price : null,
+          }
           : x
       );
 
@@ -734,7 +825,13 @@ export default function ListaScreen({ navigation }) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#0B1220" }} edges={["left", "right", "bottom"]}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        scrollEnabled={!isAnyModalOpen}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.headerCard}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
             <View style={styles.iconBadge}>
@@ -765,12 +862,18 @@ export default function ListaScreen({ navigation }) {
           </View>
 
           <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
-            <Pressable onPress={openSavedItems} style={({ pressed }) => [styles.secondaryActionBtn, pressed && styles.pressed]}>
+            <Pressable
+              onPress={openSavedItems}
+              style={({ pressed }) => [styles.secondaryActionBtn, pressed && styles.pressed]}
+            >
               <Ionicons name="albums-outline" size={18} color="#111827" />
               <Text style={styles.secondaryActionText}>Ver artículos</Text>
             </Pressable>
 
-            <Pressable onPress={openCreateList} style={({ pressed }) => [styles.ctaBtn, pressed && styles.pressed]}>
+            <Pressable
+              onPress={openCreateList}
+              style={({ pressed }) => [styles.ctaBtn, pressed && styles.pressed]}
+            >
               <Ionicons name="add-outline" size={18} color="#fff" />
               <Text style={styles.ctaText}>Nueva lista</Text>
             </Pressable>
@@ -892,7 +995,12 @@ export default function ListaScreen({ navigation }) {
                   </Pressable>
 
                   <View style={[styles.todayList, { marginTop: 12 }]}>
-                    <ScrollView style={{ maxHeight: 340 }}>
+                    <ScrollView
+                      style={{ maxHeight: 340 }}
+                      keyboardShouldPersistTaps="handled"
+                      nestedScrollEnabled
+                      showsVerticalScrollIndicator={false}
+                    >
                       {loadingSavedItems ? (
                         <View style={{ padding: 14, alignItems: "center" }}>
                           <ActivityIndicator />
@@ -977,7 +1085,10 @@ export default function ListaScreen({ navigation }) {
                         </Text>
                       </Pressable>
 
-                      <Pressable style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]} onPress={closeCreateSavedItem}>
+                      <Pressable
+                        style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
+                        onPress={closeCreateSavedItem}
+                      >
                         <Text style={styles.secondaryText}>Cancelar</Text>
                       </Pressable>
                     </View>
@@ -1047,7 +1158,7 @@ export default function ListaScreen({ navigation }) {
                                 try {
                                   await deleteSavedItem(selectedSavedItem);
                                   closeEditSavedItem();
-                                } catch {}
+                                } catch { }
                               },
                             },
                           ]);
@@ -1056,7 +1167,10 @@ export default function ListaScreen({ navigation }) {
                         <Text style={styles.dangerText}>Eliminar artículo</Text>
                       </Pressable>
 
-                      <Pressable style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]} onPress={closeEditSavedItem}>
+                      <Pressable
+                        style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
+                        onPress={closeEditSavedItem}
+                      >
                         <Text style={styles.secondaryText}>Cerrar</Text>
                       </Pressable>
                     </View>
@@ -1113,7 +1227,10 @@ export default function ListaScreen({ navigation }) {
                         </Text>
                       </Pressable>
 
-                      <Pressable style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]} onPress={closeCreateList}>
+                      <Pressable
+                        style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
+                        onPress={closeCreateList}
+                      >
                         <Text style={styles.secondaryText}>Cancelar</Text>
                       </Pressable>
                     </View>
@@ -1125,11 +1242,17 @@ export default function ListaScreen({ navigation }) {
         </Modal>
 
         {/* MODAL DETALLE LISTA */}
-        <Modal visible={isListDetailOpen} animationType="fade" transparent onRequestClose={closeListDetail}>
+        <Modal
+          visible={isListDetailOpen}
+          animationType="slide"
+          transparent
+          presentationStyle="overFullScreen"
+          onRequestClose={closeListDetail}
+        >
           <TouchableWithoutFeedback onPress={closeListDetail}>
             <View style={styles.modalOverlay}>
               <TouchableWithoutFeedback>
-                <View style={styles.reviewCard}>
+                <View style={styles.reviewCardLarge}>
                   <View style={styles.reviewTop}>
                     <View style={styles.reviewBadge}>
                       <Ionicons name="checkbox-outline" size={18} color="#111827" />
@@ -1149,121 +1272,193 @@ export default function ListaScreen({ navigation }) {
                     </Pressable>
                   </View>
 
-                  <View style={styles.kpiRow}>
-                    <View style={styles.kpiBoxLight}>
-                      <Text style={styles.kpiLabelDark}>Items</Text>
-                      <Text style={styles.kpiValueDark}>{selectedListItems.length}</Text>
+                  <View style={styles.summaryBlock}>
+                    <View style={styles.kpiRow}>
+                      <View style={styles.kpiBoxLight}>
+                        <Text style={styles.kpiLabelDark}>Items</Text>
+                        <Text style={styles.kpiValueDark}>{selectedTotalUnits}</Text>
+                      </View>
+                      <View style={styles.kpiBoxLight}>
+                        <Text style={styles.kpiLabelDark}>Completado</Text>
+                        <Text style={styles.kpiValueDark}>{completionForSelected}%</Text>
+                      </View>
+                      <View style={styles.kpiBoxLight}>
+                        <Text style={styles.kpiLabelDark}>Gastado</Text>
+                        <Text style={styles.kpiValueDark}>{fmtCRC(spentForSelected)}</Text>
+                      </View>
                     </View>
-                    <View style={styles.kpiBoxLight}>
-                      <Text style={styles.kpiLabelDark}>Completado</Text>
-                      <Text style={styles.kpiValueDark}>{completionForSelected}%</Text>
-                    </View>
-                    <View style={styles.kpiBoxLight}>
-                      <Text style={styles.kpiLabelDark}>Gastado</Text>
-                      <Text style={styles.kpiValueDark}>{fmtCRC(spentForSelected)}</Text>
-                    </View>
-                  </View>
 
-                  <View style={styles.kpiRow}>
-                    <View style={styles.kpiBoxLight}>
-                      <Text style={styles.kpiLabelDark}>Total lista</Text>
-                      <Text style={styles.kpiValueDark}>{fmtCRC(totalSelectedPrice)}</Text>
+                    <View style={styles.kpiRow}>
+                      <View style={styles.kpiBoxLight}>
+                        <Text style={styles.kpiLabelDark}>Total lista</Text>
+                        <Text style={styles.kpiValueDark}>{fmtCRC(totalSelectedPrice)}</Text>
+                      </View>
+                      <View style={styles.kpiBoxLight}>
+                        <Text style={styles.kpiLabelDark}>Confirmados</Text>
+                        <Text style={styles.kpiValueDark}>{selectedCheckedUnits}</Text>
+                      </View>
+                      <View style={styles.kpiBoxLight}>
+                        <Text style={styles.kpiLabelDark}>Pendientes</Text>
+                        <Text style={styles.kpiValueDark}>{selectedPendingUnits}</Text>
+                      </View>
                     </View>
-                    <View style={styles.kpiBoxLight}>
-                      <Text style={styles.kpiLabelDark}>Confirmados</Text>
-                      <Text style={styles.kpiValueDark}>
-                        {selectedListItems.filter((x) => !!x.checked).length}
-                      </Text>
-                    </View>
-                    <View style={styles.kpiBoxLight}>
-                      <Text style={styles.kpiLabelDark}>Pendientes</Text>
-                      <Text style={styles.kpiValueDark}>
-                        {selectedListItems.filter((x) => !x.checked).length}
-                      </Text>
-                    </View>
-                  </View>
 
-                  <View style={styles.progressBarWrap}>
-                    <View style={[styles.progressBarFill, { width: `${completionForSelected}%` }]} />
+                    <View style={styles.progressBarWrap}>
+                      <View style={[styles.progressBarFill, { width: `${completionForSelected}%` }]} />
+                    </View>
                   </View>
 
                   <View style={styles.detailActions}>
-                    <Pressable onPress={openAddManualItem} style={({ pressed }) => [styles.primaryMiniBtn, pressed && styles.pressed]}>
+                    <Pressable
+                      onPress={openAddManualItem}
+                      style={({ pressed }) => [styles.primaryMiniBtn, pressed && styles.pressed]}
+                    >
                       <Ionicons name="add-outline" size={16} color="#fff" />
                       <Text style={styles.primaryMiniText}>Añadir manual</Text>
                     </Pressable>
 
-                    <Pressable onPress={openAddFromSaved} style={({ pressed }) => [styles.secondaryMiniBtn, pressed && styles.pressed]}>
+                    <Pressable
+                      onPress={openAddFromSaved}
+                      style={({ pressed }) => [styles.secondaryMiniBtn, pressed && styles.pressed]}
+                    >
                       <Ionicons name="search-outline" size={16} color="#111827" />
                       <Text style={styles.secondaryMiniText}>Desde artículos</Text>
                     </Pressable>
                   </View>
-
-                  <View style={[styles.todayList, { marginTop: 12 }]}>
-                    <ScrollView style={{ maxHeight: 320 }}>
+                  <View style={styles.extraActionsRow}>
+                    <Pressable
+                      onPress={() =>
+                        Alert.alert(
+                          "Vaciar lista",
+                          "¿Deseas eliminar todos los artículos de esta lista?",
+                          [
+                            { text: "Cancelar", style: "cancel" },
+                            { text: "Vaciar", style: "destructive", onPress: clearSelectedList },
+                          ]
+                        )
+                      }
+                      style={({ pressed }) => [styles.clearListBtn, pressed && styles.pressed]}
+                    >
+                      <Ionicons name="trash-bin-outline" size={16} color="#991B1B" />
+                      <Text style={styles.clearListText}>Vaciar lista</Text>
+                    </Pressable>
+                  </View>
+                  <View style={styles.itemsContainer}>
+                    <ScrollView
+                      style={styles.itemsScroll}
+                      contentContainerStyle={styles.itemsScrollContent}
+                      nestedScrollEnabled={true}
+                      keyboardShouldPersistTaps="handled"
+                      showsVerticalScrollIndicator={false}
+                      bounces={false}
+                    >
                       {loadingSelectedItems ? (
                         <View style={{ padding: 14, alignItems: "center" }}>
                           <ActivityIndicator />
                         </View>
                       ) : selectedListItems.length === 0 ? (
-                        <View style={{ padding: 14 }}>
-                          <Text style={{ color: "#6B7280", fontWeight: "800" }}>
-                            No hay artículos en esta lista.
-                          </Text>
+                        <View style={styles.emptyItemsState}>
+                          <Ionicons name="bag-handle-outline" size={20} color="#6B7280" />
+                          <Text style={styles.emptyItemsText}>No hay artículos en esta lista.</Text>
                         </View>
                       ) : (
-                        selectedListItems.map((item) => (
-                          <View key={item.id} style={styles.todayItem}>
-                            <Pressable onPress={() => toggleItemChecked(item)} style={styles.checkBtn}>
-                              <Ionicons
-                                name={item.checked ? "checkbox" : "square-outline"}
-                                size={24}
-                                color={item.checked ? "#16A34A" : "#6B7280"}
-                              />
-                            </Pressable>
+                        selectedListItems.map((item) => {
+                          const qty = Number(item.quantity || 1);
+                          const itemTotal = typeof item.price === "number" ? item.price * qty : null;
 
-                            <View style={{ flex: 1 }}>
-                              <View style={styles.todayRowTop}>
-                                <Text
-                                  style={[
-                                    styles.todayItemTitle,
-                                    item.checked && { textDecorationLine: "line-through", opacity: 0.6 },
-                                  ]}
-                                >
-                                  {item.name || "Artículo"}
-                                </Text>
-                                {!!item.price && <Text style={styles.todayTime}>{fmtCRC(item.price)}</Text>}
-                              </View>
-
-                              <Text style={styles.todayText}>
-                                {item.fromSavedItem ? "Agregado desde artículos guardados" : "Agregado manualmente"}
-                              </Text>
-
-                              <View style={{ flexDirection: "row", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-                                <Pressable
-                                  onPress={() => openEditListItem(item)}
-                                  style={({ pressed }) => [styles.editMiniBtn, pressed && { opacity: 0.7 }]}
-                                >
-                                  <Ionicons name="create-outline" size={14} color="#111827" />
-                                  <Text style={styles.editMiniText}>Editar</Text>
+                          return (
+                            <View key={item.id} style={styles.itemCard}>
+                              <View style={styles.itemCardRow}>
+                                <Pressable onPress={() => toggleItemChecked(item)} style={styles.checkBtn}>
+                                  <Ionicons
+                                    name={item.checked ? "checkbox" : "square-outline"}
+                                    size={24}
+                                    color={item.checked ? "#16A34A" : "#6B7280"}
+                                  />
                                 </Pressable>
 
-                                <Pressable
-                                  onPress={() =>
-                                    Alert.alert("Eliminar", "¿Deseas quitar este artículo de la lista?", [
-                                      { text: "Cancelar", style: "cancel" },
-                                      { text: "Eliminar", style: "destructive", onPress: () => deleteListItem(item) },
-                                    ])
-                                  }
-                                  style={({ pressed }) => [styles.deleteMiniBtn, pressed && { opacity: 0.7 }]}
-                                >
-                                  <Ionicons name="trash-outline" size={14} color="#991B1B" />
-                                  <Text style={styles.deleteMiniText}>Eliminar</Text>
-                                </Pressable>
+                                <View style={{ flex: 1 }}>
+                                  <View style={styles.itemCardHeader}>
+                                    <Text
+                                      style={[
+                                        styles.todayItemTitle,
+                                        item.checked && { textDecorationLine: "line-through", opacity: 0.6 },
+                                      ]}
+                                      numberOfLines={2}
+                                    >
+                                      {item.name || "Artículo"}
+                                    </Text>
+
+                                    {!!item.price && (
+                                      <View style={styles.totalChip}>
+                                        <Text style={styles.totalChipText}>
+                                          {selectedList?.isDaily
+                                            ? fmtCRC(itemTotal)
+                                            : fmtCRC(item.price)}
+                                        </Text>
+                                      </View>
+                                    )}
+                                  </View>
+
+                                  <Text style={styles.todayText}>
+                                    {item.fromSavedItem
+                                      ? "Agregado desde artículos guardados"
+                                      : "Agregado manualmente"}
+                                  </Text>
+
+                                  {!!item.price && selectedList?.isDaily ? (
+                                    <Text style={styles.itemCalcText}>
+                                      {fmtCRC(item.price)} x {qty}
+                                    </Text>
+                                  ) : null}
+
+                                  {selectedList?.isDaily ? (
+                                    <View style={styles.qtyRow}>
+                                      <Pressable
+                                        onPress={() => updateItemQuantity(item, -1)}
+                                        style={({ pressed }) => [styles.qtyBtn, pressed && { opacity: 0.7 }]}
+                                      >
+                                        <Text style={styles.qtyBtnText}>−</Text>
+                                      </Pressable>
+
+                                      <View style={styles.qtyValueBox}>
+                                        <Text style={styles.qtyValueText}>{qty}</Text>
+                                      </View>
+
+                                      <Pressable
+                                        onPress={() => updateItemQuantity(item, 1)}
+                                        style={({ pressed }) => [styles.qtyBtn, pressed && { opacity: 0.7 }]}
+                                      >
+                                        <Text style={styles.qtyBtnText}>+</Text>
+                                      </Pressable>
+                                    </View>
+                                  ) : null}
+
+                                  <View style={styles.itemActionsWrap}>
+                                    <Pressable
+                                      onPress={() => openEditListItem(item)}
+                                      style={({ pressed }) => [styles.iconOnlyBtn, pressed && { opacity: 0.7 }]}
+                                    >
+                                      <Ionicons name="create-outline" size={18} color="#111827" />
+                                    </Pressable>
+
+                                    <Pressable
+                                      onPress={() =>
+                                        Alert.alert("Eliminar", "¿Deseas quitar este artículo de la lista?", [
+                                          { text: "Cancelar", style: "cancel" },
+                                          { text: "Eliminar", style: "destructive", onPress: () => deleteListItem(item) },
+                                        ])
+                                      }
+                                      style={({ pressed }) => [styles.iconOnlyDeleteBtn, pressed && { opacity: 0.7 }]}
+                                    >
+                                      <Ionicons name="trash-outline" size={18} color="#991B1B" />
+                                    </Pressable>
+                                  </View>
+                                </View>
                               </View>
                             </View>
-                          </View>
-                        ))
+                          );
+                        })
                       )}
                     </ScrollView>
                   </View>
@@ -1322,7 +1517,10 @@ export default function ListaScreen({ navigation }) {
                         </Text>
                       </Pressable>
 
-                      <Pressable style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]} onPress={closeAddManualItem}>
+                      <Pressable
+                        style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
+                        onPress={closeAddManualItem}
+                      >
                         <Text style={styles.secondaryText}>Cancelar</Text>
                       </Pressable>
                     </View>
@@ -1355,7 +1553,12 @@ export default function ListaScreen({ navigation }) {
                   />
 
                   <View style={[styles.todayList, { marginTop: 12 }]}>
-                    <ScrollView style={{ maxHeight: 320 }}>
+                    <ScrollView
+                      style={{ maxHeight: 320 }}
+                      keyboardShouldPersistTaps="handled"
+                      nestedScrollEnabled
+                      showsVerticalScrollIndicator={false}
+                    >
                       {filteredSavedItems.length === 0 ? (
                         <View style={{ padding: 14 }}>
                           <Text style={{ color: "#6B7280", fontWeight: "800" }}>
@@ -1446,7 +1649,10 @@ export default function ListaScreen({ navigation }) {
                         </Text>
                       </Pressable>
 
-                      <Pressable style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]} onPress={closeEditListItem}>
+                      <Pressable
+                        style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
+                        onPress={closeEditListItem}
+                      >
                         <Text style={styles.secondaryText}>Cancelar</Text>
                       </Pressable>
                     </View>
@@ -1514,12 +1720,12 @@ const styles = StyleSheet.create({
 
   kpiBoxLight: {
     flex: 1,
-    backgroundColor: "rgba(17,24,39,0.03)",
+    backgroundColor: "#F8FAFC",
     borderRadius: 16,
     paddingVertical: 12,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: "rgba(17,24,39,0.10)",
+    borderColor: "#E5E7EB",
   },
 
   kpiLabelDark: { color: "#6B7280", fontWeight: "800", fontSize: 11 },
@@ -1790,15 +1996,15 @@ const styles = StyleSheet.create({
   modalSub: { fontSize: 13, opacity: 0.7, marginBottom: 14, color: "#111827" },
 
   closeBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
+    width: 42,
+    height: 42,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#F3F4F6",
   },
 
-  closeBtnText: { fontSize: 16, fontWeight: "900", color: "#111827" },
+  closeBtnText: { fontSize: 18, fontWeight: "900", color: "#111827" },
 
   label: { fontSize: 12, fontWeight: "900", color: "#111827" },
 
@@ -1897,8 +2103,8 @@ const styles = StyleSheet.create({
   reviewTop: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 },
 
   reviewBadge: {
-    width: 38,
-    height: 38,
+    width: 42,
+    height: 42,
     borderRadius: 14,
     backgroundColor: "rgba(236,72,153,0.12)",
     borderWidth: 1,
@@ -1907,8 +2113,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  reviewTitle: { fontSize: 16, fontWeight: "900", color: "#111827" },
+  reviewTitle: { fontSize: 20, fontWeight: "900", color: "#111827" },
   reviewSub: { marginTop: 2, fontSize: 12, fontWeight: "900", color: "#6B7280" },
+
+  summaryBlock: {
+    borderRadius: 18,
+    backgroundColor: "#FFFFFF",
+  },
 
   progressBarWrap: {
     marginTop: 12,
@@ -1924,7 +2135,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#16A34A",
   },
 
-  detailActions: { marginTop: 12, flexDirection: "row", gap: 10 },
+  detailActions: {
+    marginTop: 14,
+    flexDirection: "row",
+    gap: 10,
+  },
 
   primaryMiniBtn: {
     flex: 1,
@@ -1932,8 +2147,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    paddingVertical: 12,
-    borderRadius: 14,
+    paddingVertical: 14,
+    borderRadius: 16,
     backgroundColor: "#111827",
   },
 
@@ -1945,8 +2160,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    paddingVertical: 12,
-    borderRadius: 14,
+    paddingVertical: 14,
+    borderRadius: 16,
     backgroundColor: "#F3F4F6",
   },
 
@@ -1964,6 +2179,50 @@ const styles = StyleSheet.create({
     backgroundColor: "#FAFAFA",
   },
 
+  itemCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    padding: 14,
+    marginHorizontal: 2,
+  },
+
+  itemCardRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+
+  itemCardHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 10,
+    marginBottom: 4,
+  },
+
+  totalChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: "rgba(17,24,39,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(17,24,39,0.10)",
+  },
+
+  totalChipText: {
+    color: "#111827",
+    fontWeight: "900",
+    fontSize: 12,
+  },
+
+  itemCalcText: {
+    marginTop: 6,
+    color: "#6B7280",
+    fontWeight: "800",
+    fontSize: 12,
+  },
+
   todayRowTop: {
     flexDirection: "row",
     alignItems: "center",
@@ -1971,7 +2230,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
 
-  todayItemTitle: { fontWeight: "900", color: "#111827" },
+  todayItemTitle: { flex: 1, fontWeight: "900", color: "#111827", fontSize: 15 },
   todayTime: { fontWeight: "900", color: "#111827", opacity: 0.8, fontSize: 12 },
   todayText: { color: "#111827", fontWeight: "700", opacity: 0.85, fontSize: 12 },
 
@@ -1993,14 +2252,43 @@ const styles = StyleSheet.create({
     backgroundColor: "#FAFAFA",
   },
 
+  itemActionsWrap: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 10,
+    justifyContent: "flex-end",
+  },
+
+  iconOnlyBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(17,24,39,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(17,24,39,0.12)",
+  },
+
+  iconOnlyDeleteBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(239,68,68,0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(239,68,68,0.25)",
+  },
+
   editMiniBtn: {
     alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 14,
     backgroundColor: "rgba(17,24,39,0.06)",
     borderWidth: 1,
     borderColor: "rgba(17,24,39,0.12)",
@@ -2013,13 +2301,123 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 14,
     backgroundColor: "rgba(239,68,68,0.10)",
     borderWidth: 1,
     borderColor: "rgba(239,68,68,0.25)",
   },
 
   deleteMiniText: { color: "#991B1B", fontWeight: "900", fontSize: 12 },
+
+  qtyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 12,
+  },
+
+  qtyBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F3F4F6",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+
+  qtyBtnText: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: "#111827",
+    lineHeight: 24,
+  },
+
+  qtyValueBox: {
+    minWidth: 50,
+    height: 42,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(17,24,39,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(17,24,39,0.10)",
+  },
+
+  qtyValueText: {
+    fontSize: 15,
+    fontWeight: "900",
+    color: "#111827",
+  },
+
+  emptyItemsState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 26,
+    paddingHorizontal: 14,
+    gap: 8,
+  },
+
+  emptyItemsText: {
+    color: "#6B7280",
+    fontWeight: "800",
+    textAlign: "center",
+  },
+
+  reviewCardLarge: {
+    width: "100%",
+    maxWidth: 560,
+    height: "82%",
+    alignSelf: "center",
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    padding: 18,
+  },
+
+  itemsContainer: {
+    flex: 1,
+    marginTop: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FAFAFA",
+    overflow: "hidden",
+    minHeight: 0,
+  },
+
+  itemsScroll: {
+    flex: 1,
+  },
+
+  itemsScrollContent: {
+    padding: 12,
+    gap: 12,
+    paddingBottom: 40,
+  },
+
+  extraActionsRow: {
+    marginTop: 10,
+  },
+
+  clearListBtn: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: "rgba(239,68,68,0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(239,68,68,0.25)",
+  },
+
+  clearListText: {
+    color: "#991B1B",
+    fontWeight: "900",
+  },
 });

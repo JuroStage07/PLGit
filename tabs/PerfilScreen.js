@@ -19,9 +19,13 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import {
     doc,
+    collection,
     updateDoc,
     increment,
     onSnapshot,
+    getDoc,
+    serverTimestamp,
+    writeBatch,
 } from "firebase/firestore";
 import { useNavigation } from "@react-navigation/native";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -42,6 +46,8 @@ export default function PerfilScreen() {
     // Modal salario
     const [isSalaryOpen, setIsSalaryOpen] = useState(false);
     const [salaryInput, setSalaryInput] = useState("");
+    /** Monto que va a Mi Saldo (config del grupo), para vista previa del modal */
+    const [salaryModalMiStep, setSalaryModalMiStep] = useState(null);
 
     // Modal foto
     const [isPhotoOpen, setIsPhotoOpen] = useState(false);
@@ -155,6 +161,28 @@ export default function PerfilScreen() {
         return () => unsub();
     }, [profile?.partnerUid]);
 
+    useEffect(() => {
+        if (!isSalaryOpen || !profile?.groupId) {
+            setSalaryModalMiStep(null);
+            return;
+        }
+        let cancelled = false;
+        (async () => {
+            const cfgRef = doc(db, "groups", profile.groupId, "miSaldoConfig", "main");
+            const snap = await getDoc(cfgRef);
+            if (cancelled) return;
+            let v = 10000;
+            if (snap.exists()) {
+                const val = snap.data()?.value;
+                if (typeof val === "number" && val > 0) v = val;
+            }
+            setSalaryModalMiStep(v);
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [isSalaryOpen, profile?.groupId]);
+
     // ---------- SALARIO (SUMA) ----------
     const openSalaryModal = () => {
         setSalaryInput("");
@@ -185,11 +213,89 @@ export default function PerfilScreen() {
 
         try {
             const refDoc = doc(db, "users", user.uid);
+            const groupId = profile?.groupId || "";
 
-            await updateDoc(refDoc, { saldo: increment(amount) });
+            let miSaldoStep = 0;
+            if (groupId) {
+                const cfgRef = doc(db, "groups", groupId, "miSaldoConfig", "main");
+                const cfgSnap = await getDoc(cfgRef);
+                if (cfgSnap.exists()) {
+                    const v = cfgSnap.data()?.value;
+                    miSaldoStep =
+                        typeof v === "number" && v > 0 ? v : 10000;
+                } else {
+                    miSaldoStep = 10000;
+                }
+            }
 
-            const newSaldo = (saldoNumber || 0) + amount;
-            setProfile((prev) => ({ ...(prev || {}), saldo: newSaldo }));
+            if (groupId && miSaldoStep > 0 && amount < miSaldoStep) {
+                Alert.alert(
+                    "Monto insuficiente",
+                    `El ingreso debe ser al menos ${new Intl.NumberFormat("es-CR", {
+                        style: "currency",
+                        currency: "CRC",
+                        maximumFractionDigits: 0,
+                    }).format(miSaldoStep)} para apartar el ahorro a Mi Saldo.`
+                );
+                return;
+            }
+
+            const newSaldo =
+                (saldoNumber || 0) +
+                amount -
+                (groupId && miSaldoStep > 0 ? miSaldoStep : 0);
+
+            const parseSaldoField = (v) => {
+                if (typeof v === "number") return v;
+                if (typeof v === "string") {
+                    const n = Number(String(v).replace(/[^\d.]/g, ""));
+                    return Number.isFinite(n) ? n : 0;
+                }
+                return 0;
+            };
+
+            let partnerSaldo = 0;
+            if (profile?.partnerUid) {
+                const pSnap = await getDoc(doc(db, "users", profile.partnerUid));
+                if (pSnap.exists()) {
+                    partnerSaldo = parseSaldoField(pSnap.data()?.saldo);
+                }
+            }
+            const saldoCompartidoAfter = newSaldo + partnerSaldo;
+
+            const payload =
+                groupId && miSaldoStep > 0
+                    ? { saldo: increment(amount - miSaldoStep), miSaldo: increment(miSaldoStep) }
+                    : { saldo: increment(amount) };
+
+            const batch = writeBatch(db);
+            batch.update(refDoc, {
+                ...payload,
+                salaryIngresoAt: serverTimestamp(),
+            });
+            if (groupId && miSaldoStep > 0) {
+                const logRef = doc(collection(db, "users", user.uid, "miSaldoLogs"));
+                batch.set(logRef, {
+                    type: "salario_perfil",
+                    actorUid: user.uid,
+                    actorGenero: profile?.genero || "",
+                    salaryAdded: amount,
+                    saldoCompartidoAfter,
+                    saldoAfter: newSaldo,
+                    miSaldoAdded: miSaldoStep,
+                    createdAt: serverTimestamp(),
+                });
+            }
+            await batch.commit();
+
+            setProfile((prev) => {
+                const next = { ...(prev || {}), saldo: newSaldo };
+                if (groupId && miSaldoStep > 0) {
+                    const prevMi = typeof prev?.miSaldo === "number" ? prev.miSaldo : 0;
+                    next.miSaldo = prevMi + miSaldoStep;
+                }
+                return next;
+            });
 
             Alert.alert("✅ Listo", "Saldo sumado correctamente.");
             closeSalaryModal();
@@ -299,15 +405,19 @@ export default function PerfilScreen() {
     const salaryPreviewText = (() => {
         const cleaned = sanitizeNumeric(salaryInput);
         const amount = cleaned ? Number(cleaned) : 0;
-        const total = (saldoNumber || 0) + (Number.isFinite(amount) ? amount : 0);
+        const step = profile?.groupId ? (salaryModalMiStep ?? 10000) : 0;
+        const net =
+            (saldoNumber || 0) +
+            (Number.isFinite(amount) ? amount : 0) -
+            (profile?.groupId && amount > 0 ? step : 0);
         try {
             return new Intl.NumberFormat("es-CR", {
                 style: "currency",
                 currency: "CRC",
                 maximumFractionDigits: 0,
-            }).format(total);
+            }).format(net);
         } catch {
-            return `₡ ${Math.round(total).toLocaleString("es-CR")}`;
+            return `₡ ${Math.round(net).toLocaleString("es-CR")}`;
         }
     })();
 
@@ -356,7 +466,11 @@ export default function PerfilScreen() {
                         <Text style={styles.actionBtnText}>Ingresar salario</Text>
                     </Pressable>
 
-                    <Text style={styles.hint}>Se sumará al saldo actual.</Text>
+                    <Text style={styles.hint}>
+                        {profile?.groupId
+                            ? "El salario ingresado suma a tu saldo general, pero se resta de ahí el mismo monto que se aparta a Mi Saldo (configurado en la pestaña Mi Saldo)."
+                            : "Se sumará al saldo general actual."}
+                    </Text>
                 </View>
 
                 {/* Compañero */}
@@ -394,7 +508,12 @@ export default function PerfilScreen() {
                                             </Pressable>
                                         </View>
 
-                                        <Text style={styles.modalSubtitle}>Escribe la cantidad (solo números). Se sumará a tu saldo.</Text>
+                                        <Text style={styles.modalSubtitle}>
+                                            Escribe la cantidad (solo números).
+                                            {profile?.groupId
+                                                ? " Tu saldo general sube (ingreso − apartado a Mi Saldo); Mi Saldo recibe el apartado configurado y se guarda el registro."
+                                                : " Se sumará a tu saldo general."}
+                                        </Text>
 
                                         <View style={styles.modalBody}>
                                             <Text style={styles.label}>Cantidad</Text>
@@ -414,8 +533,21 @@ export default function PerfilScreen() {
                                             </View>
 
                                             <Text style={styles.preview}>
-                                                Saldo quedará en: <Text style={styles.previewStrong}>{salaryPreviewText}</Text>
+                                                Saldo general quedará en:{" "}
+                                                <Text style={styles.previewStrong}>{salaryPreviewText}</Text>
                                             </Text>
+                                            {profile?.groupId &&
+                                            Number(sanitizeNumeric(salaryInput)) > 0 ? (
+                                                <Text style={styles.previewSub}>
+                                                    Se apartan{" "}
+                                                    {new Intl.NumberFormat("es-CR", {
+                                                        style: "currency",
+                                                        currency: "CRC",
+                                                        maximumFractionDigits: 0,
+                                                    }).format(salaryModalMiStep ?? 10000)}{" "}
+                                                    a Mi Saldo (se restan del saldo general).
+                                                </Text>
+                                            ) : null}
                                         </View>
 
                                         <View style={styles.modalActions}>
@@ -832,6 +964,7 @@ const styles = StyleSheet.create({
     moneyInput: { flex: 1, height: 48, paddingHorizontal: 10, color: "#111827", fontWeight: "800", fontSize: 16 },
     preview: { marginTop: 4, fontSize: 12, color: "#6B7280" },
     previewStrong: { color: "#111827", fontWeight: "900" },
+    previewSub: { marginTop: 8, fontSize: 12, color: "#6B7280", lineHeight: 17, fontWeight: "700" },
     modalActions: { marginTop: 16, gap: 10 },
     modalPrimaryBtn: { width: "100%", paddingVertical: 14, borderRadius: 14, alignItems: "center", backgroundColor: "#111827" },
     modalPrimaryBtnText: { color: "#fff", fontSize: 16, fontWeight: "900" },

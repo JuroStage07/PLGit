@@ -8,7 +8,6 @@ import {
   Alert,
   Modal,
   TextInput,
-  TouchableWithoutFeedback,
   KeyboardAvoidingView,
   Platform,
   Keyboard,
@@ -133,6 +132,17 @@ export default function SolicitudesScreen({ navigation }) {
     }
   };
 
+  const priceNumber = useMemo(
+    () => Number(sanitizeAmount(priceInput)) || 0,
+    [priceInput]
+  );
+
+  const canSubmitCreate = useMemo(() => {
+    const titleOk = String(titleInput || "").trim().length >= 2;
+    const priceOk = Number.isFinite(priceNumber) && priceNumber > 0;
+    return titleOk && priceOk;
+  }, [titleInput, priceNumber]);
+
   // ---- create modal ----
   const openCreate = () => {
     setTitleInput("");
@@ -167,8 +177,8 @@ export default function SolicitudesScreen({ navigation }) {
     const price = Number(sanitizeAmount(priceInput));
     const note = String(noteInput || "").trim();
 
-    if (!title) {
-      Alert.alert("Dato requerido", "Escribe qué quieres comprar.");
+    if (title.length < 2) {
+      Alert.alert("Dato requerido", "Escribe al menos 2 caracteres describiendo qué quieres comprar.");
       return;
     }
     if (!Number.isFinite(price) || price <= 0) {
@@ -190,7 +200,6 @@ export default function SolicitudesScreen({ navigation }) {
         createdByName: profile?.nombre || user?.displayName || "",
       });
 
-      Alert.alert("✅ Enviado", "Solicitud enviada para aprobación.");
       closeCreate();
     } catch (e) {
       Alert.alert("Error", e?.message || "No se pudo crear.");
@@ -276,17 +285,16 @@ export default function SolicitudesScreen({ navigation }) {
 
           <Text style={styles.lockTitle}>Solicitudes bloqueadas</Text>
           <Text style={styles.lockSub}>
-            Esta sección se activa cuando creas un grupo con tu compañero.
+            Crea un grupo en Partner para enviar compras y que tu compañero las apruebe.
           </Text>
 
           <Pressable
             onPress={() => navigation.navigate("Partner")}
-            style={({ pressed }) => [styles.bigPlusBtn, pressed && styles.pressed]}
+            style={({ pressed }) => [styles.lockPrimaryBtn, pressed && styles.pressed]}
           >
-            <Ionicons name="add" size={34} color="#fff" />
+            <Ionicons name="heart-outline" size={20} color="#fff" />
+            <Text style={styles.lockPrimaryBtnText}>Ir a Partner</Text>
           </Pressable>
-
-          <Text style={styles.lockHint}>Ir a Partner</Text>
         </View>
       </View>
     );
@@ -297,21 +305,34 @@ export default function SolicitudesScreen({ navigation }) {
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         {/* ===== DASHBOARD ===== */}
         <View style={styles.headerCard}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <View style={styles.headerTopRow}>
             <View style={styles.iconBadge}>
               <Ionicons name="cart-outline" size={18} color="#111827" />
             </View>
 
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={styles.headerTitle}>Solicitudes del grupo</Text>
-              <Text style={styles.headerSub}>Pendientes requieren aprobación del otro.</Text>
+              <Text style={styles.headerSub}>
+                Tú propones; tu compañero aprueba o rechaza antes de comprar.
+              </Text>
             </View>
-
-            <Pressable onPress={openCreate} style={({ pressed }) => [styles.ctaBtn, pressed && styles.pressed]}>
-              <Ionicons name="add-outline" size={18} color="#fff" />
-              <Text style={styles.ctaText}>Nuevo</Text>
-            </Pressable>
           </View>
+
+          <Pressable
+            onPress={openCreate}
+            accessibilityRole="button"
+            accessibilityLabel="Nueva solicitud de compra"
+            style={({ pressed }) => [styles.headerCtaWide, pressed && styles.pressed]}
+          >
+            <View style={styles.headerCtaIconWrap}>
+              <Ionicons name="send-outline" size={20} color="#fff" />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.headerCtaTitle}>Nueva solicitud</Text>
+              <Text style={styles.headerCtaSub}>Describe el artículo y el precio en colones</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.85)" />
+          </Pressable>
 
           <View style={styles.kpiRow}>
             <View style={styles.kpiBox}>
@@ -348,25 +369,38 @@ export default function SolicitudesScreen({ navigation }) {
             </View>
           ) : pending.length === 0 ? (
             <View style={styles.emptyBox}>
-              <Ionicons name="checkmark-circle-outline" size={18} color="#111827" />
-              <Text style={styles.emptyText}>No hay solicitudes pendientes.</Text>
+              <Ionicons name="sparkles-outline" size={22} color="#6B7280" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.emptyTitle}>Nada pendiente</Text>
+                <Text style={styles.emptyText}>
+                  Cuando envíes una solicitud, aparecerá aquí hasta que tu compañero responda.
+                </Text>
+              </View>
             </View>
           ) : (
             <View style={{ gap: 10, marginTop: 8 }}>
               {pending.map((it) => {
                 const isMine = it.createdBy === user?.uid;
-                const subtitle = isMine ? "Esperando aprobación" : "Toca para revisar";
+                const subtitle = isMine ? "Esperando a tu compañero" : "Toca para aprobar o rechazar";
 
                 return (
                   <Pressable
                     key={it.id}
                     onPress={() => openReview(it)}
-                    style={({ pressed }) => [styles.itemRow, pressed && styles.pressed, isMine && { opacity: 0.85 }]}
+                    accessibilityRole="button"
+                    accessibilityHint={isMine ? "Ver detalle de tu solicitud" : "Abrir para revisar"}
+                    style={({ pressed }) => [
+                      styles.itemRow,
+                      isMine ? styles.itemRowMine : styles.itemRowPartner,
+                      pressed && styles.pressed,
+                    ]}
                   >
                     <View style={styles.itemLeft}>
-                      <View style={styles.itemDotPending} />
+                      <View style={[styles.roleChip, isMine ? styles.roleChipMine : styles.roleChipPartner]}>
+                        <Text style={styles.roleChipText}>{isMine ? "Mía" : "Compañero"}</Text>
+                      </View>
                       <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={styles.itemName} numberOfLines={1}>
+                        <Text style={styles.itemName} numberOfLines={2}>
                           {it.title || "Solicitud"}
                         </Text>
                         <Text style={styles.itemMeta} numberOfLines={1}>
@@ -375,11 +409,9 @@ export default function SolicitudesScreen({ navigation }) {
                       </View>
                     </View>
 
-                    <View style={{ alignItems: "flex-end" }}>
+                    <View style={styles.itemRightCol}>
                       <Text style={styles.itemAmount}>{fmtCRC(it.price || 0)}</Text>
-                      <Text style={styles.itemMini} numberOfLines={1}>
-                        {isMine ? "Tú la creaste" : "La creó tu compañero"}
-                      </Text>
+                      <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
                     </View>
                   </Pressable>
                 );
@@ -434,165 +466,248 @@ export default function SolicitudesScreen({ navigation }) {
         <Text style={styles.footer}>PartnerLife • MoniJuro™</Text>
 
         {/* ===== MODAL CREAR ===== */}
-        <Modal visible={isCreateOpen} animationType="fade" transparent onRequestClose={closeCreate}>
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <Modal visible={isCreateOpen} animationType="slide" transparent onRequestClose={closeCreate}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={styles.modalKbRoot}
+          >
             <View style={styles.modalOverlay}>
-              <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ width: "100%" }}>
-                <TouchableWithoutFeedback>
-                  <View style={styles.modalCard}>
-                    <View style={styles.modalHeader}>
+              <Pressable style={styles.modalBackdrop} onPress={Keyboard.dismiss} accessibilityLabel="Cerrar teclado" />
+              <View style={styles.modalCardWrap}>
+                <View style={styles.modalCard}>
+                  <View style={styles.modalGrab} />
+
+                  <View style={styles.modalHeader}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={styles.modalEyebrow}>Paso único</Text>
                       <Text style={styles.modalTitle}>Nueva solicitud</Text>
-                      <Pressable onPress={closeCreate} hitSlop={10} style={styles.closeBtn}>
-                        <Text style={styles.closeBtnText}>✕</Text>
-                      </Pressable>
                     </View>
+                    <Pressable onPress={closeCreate} hitSlop={12} style={styles.closeBtn} accessibilityLabel="Cerrar">
+                      <Ionicons name="close" size={22} color="#111827" />
+                    </Pressable>
+                  </View>
 
-                    <Text style={styles.modalSub}>
-                      Se enviará como pendiente para que tu compañero la apruebe o rechace.
-                    </Text>
+                  <Text style={styles.modalSub}>
+                    Tu compañero verá el artículo y el monto. Solo podrá aprobar o rechazar.
+                  </Text>
 
-                    <Text style={styles.label}>Artículo</Text>
+                  <ScrollView
+                    style={styles.modalScroll}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                  >
+                    <Text style={styles.label}>¿Qué quieres comprar?</Text>
                     <TextInput
                       value={titleInput}
                       onChangeText={setTitleInput}
-                      placeholder="Ej: Juego de Switch"
+                      placeholder="Ej: Juego de Switch, zapatillas…"
                       placeholderTextColor="#9CA3AF"
                       style={styles.input}
                       returnKeyType="next"
+                      maxLength={120}
                     />
+                    <Text style={styles.fieldHint}>Mínimo 2 caracteres.</Text>
 
-                    <Text style={[styles.label, { marginTop: 10 }]}>Precio</Text>
+                    <Text style={[styles.label, { marginTop: 14 }]}>Precio estimado (CRC)</Text>
                     <View style={styles.moneyWrap}>
                       <Text style={styles.moneyPrefix}>₡</Text>
                       <TextInput
                         value={priceInput}
                         onChangeText={(t) => setPriceInput(sanitizeAmount(t))}
-                        placeholder="Ej: 35000"
+                        placeholder="35000"
                         placeholderTextColor="#9CA3AF"
                         keyboardType="number-pad"
                         style={styles.moneyInput}
-                        returnKeyType="next"
+                        returnKeyType="done"
                       />
                     </View>
 
-                    <Text style={[styles.label, { marginTop: 10 }]}>Nota (opcional)</Text>
+                    <Text style={[styles.label, { marginTop: 14 }]}>Nota para tu compañero (opcional)</Text>
                     <TextInput
                       value={noteInput}
                       onChangeText={setNoteInput}
-                      placeholder="Ej: Está en descuento / lo ocupo para..."
+                      placeholder="Ej: Lo vi en oferta / es para el cumple…"
                       placeholderTextColor="#9CA3AF"
-                      style={[styles.input, { height: 80, textAlignVertical: "top", paddingTop: 12 }]}
+                      style={styles.inputNote}
                       multiline
-                      returnKeyType="done"
-                      onSubmitEditing={createRequest}
+                      textAlignVertical="top"
+                      returnKeyType="default"
                     />
 
-                    <Text style={styles.preview}>
-                      Precio:{" "}
-                      <Text style={styles.previewStrong}>
-                        {fmtCRC(Number(sanitizeAmount(priceInput)) || 0)}
+                    <View style={styles.previewCard}>
+                      <Text style={styles.previewCardLabel}>Resumen</Text>
+                      <Text style={styles.previewCardTitle} numberOfLines={2}>
+                        {String(titleInput || "").trim() || "—"}
                       </Text>
-                    </Text>
-
-                    <View style={{ marginTop: 14, gap: 10 }}>
-                      <Pressable
-                        style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed, creating && { opacity: 0.6 }]}
-                        onPress={createRequest}
-                        disabled={creating}
-                      >
-                        <Text style={styles.primaryText}>{creating ? "Enviando..." : "Enviar a aprobación"}</Text>
-                      </Pressable>
-
-                      <Pressable
-                        style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
-                        onPress={closeCreate}
-                        disabled={creating}
-                      >
-                        <Text style={styles.secondaryText}>Cancelar</Text>
-                      </Pressable>
+                      <Text style={styles.previewCardPrice}>{fmtCRC(priceNumber)}</Text>
+                      {!!String(noteInput || "").trim() && (
+                        <Text style={styles.previewCardNote} numberOfLines={3}>
+                          {String(noteInput || "").trim()}
+                        </Text>
+                      )}
                     </View>
+                  </ScrollView>
+
+                  <View style={styles.modalFooter}>
+                    {!canSubmitCreate && !creating ? (
+                      <Text style={styles.footerHint}>
+                        Completa el nombre (2+ caracteres) y un precio mayor a ₡0.
+                      </Text>
+                    ) : null}
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.primaryBtn,
+                        styles.primaryBtnRow,
+                        (!canSubmitCreate || creating) && styles.primaryBtnDisabled,
+                        pressed && canSubmitCreate && !creating && styles.pressed,
+                      ]}
+                      onPress={createRequest}
+                      disabled={!canSubmitCreate || creating}
+                      accessibilityState={{ disabled: !canSubmitCreate || creating }}
+                    >
+                      {creating ? (
+                        <ActivityIndicator color="#fff" />
+                      ) : (
+                        <>
+                          <Ionicons name="paper-plane" size={18} color="#fff" />
+                          <Text style={styles.primaryText}>Enviar a mi compañero</Text>
+                        </>
+                      )}
+                    </Pressable>
+
+                    <Pressable
+                      style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
+                      onPress={closeCreate}
+                      disabled={creating}
+                    >
+                      <Text style={styles.secondaryText}>Cancelar</Text>
+                    </Pressable>
                   </View>
-                </TouchableWithoutFeedback>
-              </KeyboardAvoidingView>
+                </View>
+              </View>
             </View>
-          </TouchableWithoutFeedback>
+          </KeyboardAvoidingView>
         </Modal>
 
         {/* ===== MODAL REVISAR ===== */}
-        <Modal visible={isReviewOpen} animationType="fade" transparent onRequestClose={closeReview}>
-          <TouchableWithoutFeedback onPress={closeReview}>
-            <View style={styles.modalOverlay}>
-              <TouchableWithoutFeedback>
-                <View style={styles.reviewCard}>
-                  <View style={styles.reviewTop}>
-                    <View style={styles.reviewBadge}>
-                      <Ionicons name="sparkles-outline" size={18} color="#111827" />
-                    </View>
+        <Modal visible={isReviewOpen} animationType="slide" transparent onRequestClose={closeReview}>
+          <View style={styles.modalOverlay}>
+            <Pressable style={styles.modalBackdrop} onPress={closeReview} accessibilityLabel="Cerrar" />
+            <View style={styles.reviewCardWrap}>
+              <View style={styles.reviewCard}>
+                <View style={styles.modalGrab} />
 
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={styles.reviewTitle} numberOfLines={1}>
-                        {selected?.title || "Solicitud"}
-                      </Text>
-                      <Text style={styles.reviewSub} numberOfLines={1}>
-                        {fmtCRC(selected?.price || 0)}
-                      </Text>
-                    </View>
+                <View style={styles.reviewHero}>
+                  <Text style={styles.reviewHeroAmount}>{fmtCRC(selected?.price || 0)}</Text>
+                  <Text style={styles.reviewHeroTitle} numberOfLines={3}>
+                    {selected?.title || "Solicitud"}
+                  </Text>
+                </View>
 
-                    <Pressable onPress={closeReview} hitSlop={10} style={styles.closeBtn}>
-                      <Text style={styles.closeBtnText}>✕</Text>
-                    </Pressable>
-                  </View>
-
-                  {!!selected?.note ? (
-                    <View style={styles.noteBox}>
-                      <Ionicons name="chatbubble-ellipses-outline" size={18} color="#111827" />
-                      <Text style={styles.noteText}>{selected.note}</Text>
-                    </View>
-                  ) : null}
-
-                  <View style={styles.reviewInfo}>
-                    <Ionicons name="information-circle-outline" size={18} color="#111827" />
-                    <Text style={styles.reviewInfoText}>
-                      {selected?.createdBy === user?.uid
-                        ? "Esta solicitud la creaste tú. Quedará aprobada cuando tu compañero la acepte."
-                        : "¿Quieres aprobar esta solicitud? Puedes aceptarla o rechazarla."}
+                <View style={styles.authorRow}>
+                  <View style={styles.authorAvatar}>
+                    <Text style={styles.authorAvatarText}>
+                      {String(
+                        selected?.createdBy === user?.uid
+                          ? profile?.nombre || "T"
+                          : selected?.createdByName || "C"
+                      ).slice(0, 1).toUpperCase()}
                     </Text>
                   </View>
-
-                  {canReviewSelected ? (
-                    <View style={styles.reviewActions}>
-                      <Pressable
-                        onPress={approveSelected}
-                        disabled={reviewing}
-                        style={({ pressed }) => [styles.approveBtn, pressed && styles.pressed, reviewing && { opacity: 0.6 }]}
-                      >
-                        <Ionicons name="checkmark" size={18} color="#fff" />
-                        <Text style={styles.approveText}>Aprobar</Text>
-                      </Pressable>
-
-                      <Pressable
-                        onPress={() => {
-                          Alert.alert("Rechazar", "¿Seguro que deseas rechazar esta solicitud?", [
-                            { text: "Cancelar", style: "cancel" },
-                            { text: "Rechazar", style: "destructive", onPress: rejectSelected },
-                          ]);
-                        }}
-                        disabled={reviewing}
-                        style={({ pressed }) => [styles.rejectBtn, pressed && styles.pressed, reviewing && { opacity: 0.6 }]}
-                      >
-                        <Ionicons name="close" size={18} color="#991B1B" />
-                        <Text style={styles.rejectText}>Rechazar</Text>
-                      </Pressable>
-                    </View>
-                  ) : (
-                    <Pressable style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]} onPress={closeReview}>
-                      <Text style={styles.secondaryText}>Cerrar</Text>
-                    </Pressable>
-                  )}
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.authorLabel}>
+                      {selected?.createdBy === user?.uid ? "Tu solicitud" : "Solicitud de tu compañero"}
+                    </Text>
+                    <Text style={styles.authorName} numberOfLines={1}>
+                      {selected?.createdBy === user?.uid
+                        ? profile?.nombre || "Tú"
+                        : selected?.createdByName || "Compañero"}
+                    </Text>
+                  </View>
+                  <Pressable onPress={closeReview} hitSlop={12} style={styles.closeBtnRound} accessibilityLabel="Cerrar">
+                    <Ionicons name="close" size={22} color="#111827" />
+                  </Pressable>
                 </View>
-              </TouchableWithoutFeedback>
+
+                {!!selected?.note ? (
+                  <View style={styles.noteBox}>
+                    <Ionicons name="chatbubble-ellipses-outline" size={20} color="#6B7280" />
+                    <Text style={styles.noteText}>{selected.note}</Text>
+                  </View>
+                ) : (
+                  <View style={styles.noteEmpty}>
+                    <Ionicons name="remove-outline" size={18} color="#9CA3AF" />
+                    <Text style={styles.noteEmptyText}>Sin nota adicional</Text>
+                  </View>
+                )}
+
+                <View
+                  style={[
+                    styles.reviewInfo,
+                    canReviewSelected ? styles.reviewInfoAction : styles.reviewInfoWait,
+                  ]}
+                >
+                  <Ionicons
+                    name={canReviewSelected ? "hand-left-outline" : "hourglass-outline"}
+                    size={20}
+                    color={canReviewSelected ? "#111827" : "#6B7280"}
+                  />
+                  <Text style={styles.reviewInfoText}>
+                    {selected?.createdBy === user?.uid
+                      ? "Tu compañero puede aprobar o rechazar esta solicitud. Te avisará al decidir."
+                      : canReviewSelected
+                        ? "Si apruebas, quedará registrada como compra aceptada. Si rechazas, se elimina."
+                        : "No puedes decidir tu propia solicitud."}
+                  </Text>
+                </View>
+
+                {canReviewSelected ? (
+                  <View style={styles.reviewActionsCol}>
+                    <Pressable
+                      onPress={approveSelected}
+                      disabled={reviewing}
+                      style={({ pressed }) => [
+                        styles.approveBtnWide,
+                        pressed && styles.pressed,
+                        reviewing && { opacity: 0.65 },
+                      ]}
+                    >
+                      {reviewing ? (
+                        <ActivityIndicator color="#fff" />
+                      ) : (
+                        <>
+                          <Ionicons name="checkmark-circle" size={22} color="#fff" />
+                          <Text style={styles.approveTextWide}>Aprobar solicitud</Text>
+                        </>
+                      )}
+                    </Pressable>
+
+                    <Pressable
+                      onPress={() => {
+                        Alert.alert("Rechazar solicitud", "Se eliminará esta solicitud y no podrá recuperarse.", [
+                          { text: "Volver", style: "cancel" },
+                          { text: "Rechazar", style: "destructive", onPress: rejectSelected },
+                        ]);
+                      }}
+                      disabled={reviewing}
+                      style={({ pressed }) => [
+                        styles.rejectBtnWide,
+                        pressed && styles.pressed,
+                        reviewing && { opacity: 0.65 },
+                      ]}
+                    >
+                      <Ionicons name="trash-outline" size={20} color="#991B1B" />
+                      <Text style={styles.rejectTextWide}>Rechazar y eliminar</Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <Pressable style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]} onPress={closeReview}>
+                    <Text style={styles.secondaryText}>Entendido</Text>
+                  </Pressable>
+                )}
+              </View>
             </View>
-          </TouchableWithoutFeedback>
+          </View>
         </Modal>
       </ScrollView>
     </SafeAreaView>
@@ -616,6 +731,12 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.10)",
   },
 
+  headerTopRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+
   iconBadge: {
     width: 36,
     height: 36,
@@ -628,9 +749,32 @@ const styles = StyleSheet.create({
   },
 
   headerTitle: { color: "#fff", fontWeight: "900", fontSize: 16 },
-  headerSub: { marginTop: 2, color: "rgba(255,255,255,0.70)", fontWeight: "700", fontSize: 12 },
+  headerSub: { marginTop: 4, color: "rgba(255,255,255,0.72)", fontWeight: "700", fontSize: 12, lineHeight: 16 },
 
-  kpiRow: { marginTop: 12, flexDirection: "row", gap: 10 },
+  headerCtaWide: {
+    marginTop: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    backgroundColor: "#111827",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  headerCtaIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "rgba(236,72,153,0.22)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerCtaTitle: { color: "#fff", fontWeight: "900", fontSize: 15 },
+  headerCtaSub: { marginTop: 2, color: "rgba(255,255,255,0.65)", fontWeight: "700", fontSize: 11 },
+
+  kpiRow: { marginTop: 14, flexDirection: "row", gap: 10 },
   kpiBox: {
     flex: 1,
     backgroundColor: "rgba(255,255,255,0.10)",
@@ -642,17 +786,6 @@ const styles = StyleSheet.create({
   },
   kpiLabel: { color: "rgba(255,255,255,0.75)", fontWeight: "800", fontSize: 11 },
   kpiValue: { marginTop: 6, color: "#fff", fontWeight: "900", fontSize: 14 },
-
-  ctaBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-    backgroundColor: "#111827",
-  },
-  ctaText: { color: "#fff", fontWeight: "900" },
 
   card: {
     backgroundColor: "rgba(255,255,255,0.97)",
@@ -696,29 +829,48 @@ const styles = StyleSheet.create({
     marginTop: 12,
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
     borderRadius: 16,
     backgroundColor: "rgba(17,24,39,0.03)",
     borderWidth: 1,
     borderColor: "rgba(17,24,39,0.10)",
   },
-  emptyText: { flex: 1, color: "#111827", fontWeight: "800", opacity: 0.85, fontSize: 12, lineHeight: 16 },
+  emptyTitle: { color: "#111827", fontWeight: "900", fontSize: 13, marginBottom: 4 },
+  emptyText: { color: "#6B7280", fontWeight: "700", fontSize: 12, lineHeight: 17 },
 
   itemRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 12,
+    gap: 10,
     paddingVertical: 12,
     paddingHorizontal: 12,
     borderRadius: 16,
-    backgroundColor: "rgba(17,24,39,0.03)",
     borderWidth: 1,
+    backgroundColor: "rgba(17,24,39,0.03)",
     borderColor: "rgba(17,24,39,0.10)",
   },
-  itemLeft: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 10 },
+  itemRowMine: {
+    backgroundColor: "rgba(59,130,246,0.06)",
+    borderColor: "rgba(59,130,246,0.22)",
+  },
+  itemRowPartner: {
+    backgroundColor: "rgba(236,72,153,0.06)",
+    borderColor: "rgba(236,72,153,0.20)",
+  },
+  itemLeft: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  roleChip: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    alignSelf: "flex-start",
+  },
+  roleChipMine: { backgroundColor: "rgba(59,130,246,0.15)" },
+  roleChipPartner: { backgroundColor: "rgba(236,72,153,0.14)" },
+  roleChipText: { fontSize: 10, fontWeight: "900", color: "#111827", letterSpacing: 0.2 },
+  itemRightCol: { alignItems: "flex-end", justifyContent: "center", gap: 4, flexShrink: 0 },
   itemDotPending: { width: 10, height: 10, borderRadius: 10, borderWidth: 2, borderColor: "#F59E0B" },
   itemDotOk: { width: 10, height: 10, borderRadius: 10, borderWidth: 2, borderColor: "#16A34A" },
 
@@ -756,36 +908,81 @@ const styles = StyleSheet.create({
   },
   lockTitle: { fontSize: 16, fontWeight: "900", color: "#111827", textAlign: "center" },
   lockSub: { marginTop: 6, fontSize: 12, fontWeight: "800", color: "#6B7280", textAlign: "center", lineHeight: 16 },
-  bigPlusBtn: {
-    marginTop: 16,
-    width: 74,
-    height: 74,
-    borderRadius: 999,
+  lockPrimaryBtn: {
+    marginTop: 18,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 22,
+    borderRadius: 999,
     backgroundColor: "#111827",
-    shadowColor: "#000",
-    shadowOpacity: 0.18,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 6,
+    width: "100%",
+    maxWidth: 280,
   },
-  lockHint: { marginTop: 10, color: "#111827", fontWeight: "900", opacity: 0.75, textAlign: "center" },
+  lockPrimaryBtnText: { color: "#fff", fontWeight: "900", fontSize: 15 },
 
-  // modal base
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.60)", justifyContent: "center", padding: 18 },
-  modalCard: { width: "100%", maxWidth: 520, alignSelf: "center", backgroundColor: "#fff", borderRadius: 18, padding: 18 },
-  modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
-  modalTitle: { fontSize: 18, fontWeight: "900", color: "#111827" },
-  modalSub: { fontSize: 13, opacity: 0.7, marginBottom: 14, color: "#111827" },
+  modalKbRoot: { flex: 1 },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "flex-end",
+  },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  modalCardWrap: {
+    zIndex: 2,
+    width: "100%",
+    maxHeight: "92%",
+    paddingHorizontal: 12,
+    paddingBottom: Platform.OS === "ios" ? 20 : 12,
+  },
 
-  closeBtn: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "#F3F4F6" },
-  closeBtnText: { fontSize: 16, fontWeight: "900", color: "#111827" },
+  modalCard: {
+    width: "100%",
+    maxWidth: 560,
+    alignSelf: "center",
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    borderBottomLeftRadius: 18,
+    borderBottomRightRadius: 18,
+    paddingHorizontal: 18,
+    paddingTop: 8,
+    paddingBottom: 16,
+    maxHeight: "100%",
+  },
+  modalGrab: {
+    alignSelf: "center",
+    width: 40,
+    height: 4,
+    borderRadius: 4,
+    backgroundColor: "#E5E7EB",
+    marginBottom: 10,
+  },
+  modalHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 4 },
+  modalEyebrow: { fontSize: 11, fontWeight: "900", color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.6 },
+  modalTitle: { marginTop: 2, fontSize: 20, fontWeight: "900", color: "#111827" },
+  modalSub: { fontSize: 13, lineHeight: 18, color: "#6B7280", fontWeight: "700", marginBottom: 12 },
+
+  closeBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F3F4F6",
+  },
+
+  modalScroll: { maxHeight: 360 },
 
   label: { fontSize: 12, fontWeight: "900", color: "#111827" },
+  fieldHint: { marginTop: 4, fontSize: 11, color: "#9CA3AF", fontWeight: "700" },
   input: {
     marginTop: 6,
-    height: 48,
+    minHeight: 48,
     borderRadius: 14,
     paddingHorizontal: 12,
     borderWidth: 1,
@@ -793,6 +990,20 @@ const styles = StyleSheet.create({
     backgroundColor: "#FAFAFA",
     color: "#111827",
     fontWeight: "800",
+  },
+  inputNote: {
+    marginTop: 6,
+    minHeight: 88,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FAFAFA",
+    color: "#111827",
+    fontWeight: "700",
+    fontSize: 14,
   },
 
   moneyWrap: {
@@ -806,22 +1017,69 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   moneyPrefix: { paddingHorizontal: 14, fontWeight: "900", color: "#111827", opacity: 0.9, fontSize: 16 },
-  moneyInput: { flex: 1, height: 48, paddingHorizontal: 10, color: "#111827", fontWeight: "800", fontSize: 16 },
+  moneyInput: { flex: 1, height: 48, paddingHorizontal: 10, color: "#111827", fontWeight: "800", fontSize: 18 },
 
-  preview: { marginTop: 8, fontSize: 12, color: "#6B7280" },
-  previewStrong: { color: "#111827", fontWeight: "900" },
+  previewCard: {
+    marginTop: 16,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: "rgba(17,24,39,0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(17,24,39,0.08)",
+  },
+  previewCardLabel: { fontSize: 11, fontWeight: "900", color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.5 },
+  previewCardTitle: { marginTop: 6, fontSize: 15, fontWeight: "900", color: "#111827" },
+  previewCardPrice: { marginTop: 6, fontSize: 20, fontWeight: "900", color: "#111827" },
+  previewCardNote: { marginTop: 8, fontSize: 12, color: "#6B7280", fontWeight: "700", lineHeight: 16 },
 
-  primaryBtn: { width: "100%", paddingVertical: 14, borderRadius: 14, alignItems: "center", backgroundColor: "#111827" },
+  modalFooter: { marginTop: 8, paddingTop: 4, gap: 10, borderTopWidth: 1, borderTopColor: "#F3F4F6" },
+  footerHint: { fontSize: 11, color: "#9CA3AF", fontWeight: "700", textAlign: "center", lineHeight: 15 },
+
+  primaryBtn: { width: "100%", paddingVertical: 15, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "#111827" },
+  primaryBtnRow: { flexDirection: "row", gap: 10 },
+  primaryBtnDisabled: { backgroundColor: "#9CA3AF" },
   primaryText: { color: "#fff", fontSize: 16, fontWeight: "900" },
   secondaryBtn: { width: "100%", paddingVertical: 14, borderRadius: 14, alignItems: "center", backgroundColor: "#F3F4F6" },
   secondaryText: { color: "#111827", fontSize: 16, fontWeight: "800" },
 
-  // review modal
-  reviewCard: { width: "100%", maxWidth: 520, alignSelf: "center", backgroundColor: "#fff", borderRadius: 18, padding: 18 },
-  reviewTop: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 },
-  reviewBadge: {
-    width: 38,
-    height: 38,
+  reviewCardWrap: {
+    zIndex: 2,
+    width: "100%",
+    maxHeight: "92%",
+    paddingHorizontal: 12,
+    paddingBottom: Platform.OS === "ios" ? 24 : 14,
+  },
+  reviewCard: {
+    width: "100%",
+    maxWidth: 560,
+    alignSelf: "center",
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    borderBottomLeftRadius: 18,
+    borderBottomRightRadius: 18,
+    paddingHorizontal: 18,
+    paddingTop: 8,
+    paddingBottom: 18,
+  },
+
+  reviewHero: {
+    alignItems: "center",
+    paddingVertical: 12,
+    marginBottom: 8,
+  },
+  reviewHeroAmount: { fontSize: 32, fontWeight: "900", color: "#111827" },
+  reviewHeroTitle: { marginTop: 8, fontSize: 17, fontWeight: "900", color: "#374151", textAlign: "center", lineHeight: 22 },
+
+  authorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 12,
+  },
+  authorAvatar: {
+    width: 44,
+    height: 44,
     borderRadius: 14,
     backgroundColor: "rgba(236,72,153,0.12)",
     borderWidth: 1,
@@ -829,8 +1087,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  reviewTitle: { fontSize: 16, fontWeight: "900", color: "#111827" },
-  reviewSub: { marginTop: 2, fontSize: 12, fontWeight: "900", color: "#6B7280" },
+  authorAvatarText: { fontSize: 18, fontWeight: "900", color: "#111827" },
+  authorLabel: { fontSize: 11, fontWeight: "900", color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.4 },
+  authorName: { marginTop: 2, fontSize: 15, fontWeight: "900", color: "#111827" },
+  closeBtnRound: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F3F4F6",
+  },
 
   noteBox: {
     flexDirection: "row",
@@ -844,7 +1111,18 @@ const styles = StyleSheet.create({
     borderColor: "rgba(17,24,39,0.10)",
     marginBottom: 12,
   },
-  noteText: { flex: 1, color: "#111827", fontWeight: "800", opacity: 0.85, fontSize: 12, lineHeight: 16 },
+  noteText: { flex: 1, color: "#111827", fontWeight: "700", fontSize: 13, lineHeight: 18 },
+  noteEmpty: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    backgroundColor: "#F9FAFB",
+    marginBottom: 12,
+  },
+  noteEmptyText: { color: "#9CA3AF", fontWeight: "800", fontSize: 12 },
 
   reviewInfo: {
     flexDirection: "row",
@@ -853,37 +1131,40 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 12,
     borderRadius: 16,
-    backgroundColor: "rgba(17,24,39,0.03)",
     borderWidth: 1,
-    borderColor: "rgba(17,24,39,0.10)",
-    marginBottom: 12,
+    marginBottom: 14,
   },
-  reviewInfoText: { flex: 1, color: "#111827", fontWeight: "800", opacity: 0.85, fontSize: 12, lineHeight: 16 },
+  reviewInfoWait: {
+    backgroundColor: "rgba(245,158,11,0.08)",
+    borderColor: "rgba(245,158,11,0.25)",
+  },
+  reviewInfoAction: {
+    backgroundColor: "rgba(17,24,39,0.04)",
+    borderColor: "rgba(17,24,39,0.10)",
+  },
+  reviewInfoText: { flex: 1, color: "#374151", fontWeight: "700", fontSize: 12, lineHeight: 17 },
 
-  reviewActions: { flexDirection: "row", gap: 10 },
-  approveBtn: {
-    flex: 1,
+  reviewActionsCol: { gap: 10 },
+  approveBtnWide: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    paddingVertical: 14,
+    gap: 10,
+    paddingVertical: 16,
     borderRadius: 14,
     backgroundColor: "#111827",
   },
-  approveText: { color: "#fff", fontWeight: "900" },
-
-  rejectBtn: {
-    flex: 1,
+  approveTextWide: { color: "#fff", fontWeight: "900", fontSize: 16 },
+  rejectBtnWide: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    paddingVertical: 14,
+    gap: 10,
+    paddingVertical: 15,
     borderRadius: 14,
     backgroundColor: "rgba(239,68,68,0.10)",
     borderWidth: 1,
     borderColor: "rgba(239,68,68,0.22)",
   },
-  rejectText: { color: "#991B1B", fontWeight: "900" },
+  rejectTextWide: { color: "#991B1B", fontWeight: "900", fontSize: 15 },
 });

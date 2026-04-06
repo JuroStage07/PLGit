@@ -24,9 +24,7 @@ import {
   updateDoc,
   setDoc,
   serverTimestamp,
-  increment,
   collection,
-  addDoc,
   query,
   orderBy,
 } from "firebase/firestore";
@@ -60,6 +58,21 @@ export default function MiSaldoScreen() {
     }
   };
 
+  const generoForLog = (it) => {
+    const uid = it._actorUid || it.actorUid;
+    if (it.actorGenero) return it.actorGenero;
+    if (uid === user?.uid) return profile?.genero;
+    if (uid === partnerUid) return partnerProfile?.genero;
+    return "";
+  };
+
+  const logCardVariantStyle = (genero) => {
+    const g = String(genero || "").toLowerCase();
+    if (g === "femenino") return styles.logCardFem;
+    if (g === "masculino") return styles.logCardMasc;
+    return styles.logCardNeutral;
+  };
+
   // ====== Config del grupo para "monto por ingreso" ======
   const [config, setConfig] = useState(null);
   const [loadingConfig, setLoadingConfig] = useState(true);
@@ -89,9 +102,30 @@ export default function MiSaldoScreen() {
     return hasPending && pendingBy === user.uid;
   }, [hasPending, pendingBy, user?.uid]);
 
-  // ====== Historial ======
-  const [logs, setLogs] = useState([]);
-  const [loadingLogs, setLoadingLogs] = useState(true);
+  // ====== Historial (yo + compañero) ======
+  const [myLogs, setMyLogs] = useState([]);
+  const [partnerLogs, setPartnerLogs] = useState([]);
+  const [loadingMyLogs, setLoadingMyLogs] = useState(true);
+  const [loadingPartnerLogs, setLoadingPartnerLogs] = useState(true);
+  const [partnerProfile, setPartnerProfile] = useState(null);
+
+  const partnerUid = profile?.partnerUid || "";
+
+  const mergedLogs = useMemo(() => {
+    const merged = [...myLogs, ...partnerLogs];
+    merged.sort((a, b) => {
+      const ta =
+        a.createdAt?.toMillis?.() ??
+        (a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0);
+      const tb =
+        b.createdAt?.toMillis?.() ??
+        (b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0);
+      return tb - ta;
+    });
+    return merged;
+  }, [myLogs, partnerLogs]);
+
+  const loadingLogs = loadingMyLogs || (!!partnerUid && loadingPartnerLogs);
 
   // ====== Modales ======
   const [isSetOpen, setIsSetOpen] = useState(false);
@@ -170,27 +204,31 @@ export default function MiSaldoScreen() {
     return () => unsub();
   }, [configRef, user?.uid]);
 
-  // ====== Logs live (usuario) ======
+  // ====== Logs live (mis movimientos) ======
   useEffect(() => {
     if (!user?.uid) {
-      setLogs([]);
-      setLoadingLogs(false);
+      setMyLogs([]);
+      setLoadingMyLogs(false);
       return;
     }
 
-    setLoadingLogs(true);
+    setLoadingMyLogs(true);
     const colRef = collection(db, "users", user.uid, "miSaldoLogs");
     const qRef = query(colRef, orderBy("createdAt", "desc"));
 
     const unsub = onSnapshot(
       qRef,
       (snap) => {
-        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        setLogs(list);
-        setLoadingLogs(false);
+        const list = snap.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+          _actorUid: user.uid,
+        }));
+        setMyLogs(list);
+        setLoadingMyLogs(false);
       },
       (e) => {
-        setLoadingLogs(false);
+        setLoadingMyLogs(false);
         Alert.alert("Error", e.message);
       }
     );
@@ -198,39 +236,55 @@ export default function MiSaldoScreen() {
     return () => unsub();
   }, [user?.uid]);
 
-  // ====== Acciones ======
-  const addIngreso = useCallback(async () => {
-    if (!user?.uid) return;
-
-    // si hay pendiente, podemos bloquear para que no sumen con monto ambiguo
-    if (hasPending) {
-      Alert.alert(
-        "Pendiente de aprobación",
-        "Hay un monto por ingreso pendiente. Espera a que se apruebe o rechace para continuar."
-      );
+  // ====== Logs del compañero ======
+  useEffect(() => {
+    if (!partnerUid) {
+      setPartnerLogs([]);
+      setLoadingPartnerLogs(false);
       return;
     }
 
-    try {
-      const userRef = doc(db, "users", user.uid);
+    setLoadingPartnerLogs(true);
+    const colRef = collection(db, "users", partnerUid, "miSaldoLogs");
+    const qRef = query(colRef, orderBy("createdAt", "desc"));
 
-      // 1) sumar al miSaldo
-      await updateDoc(userRef, { miSaldo: increment(activeStep) });
+    const unsub = onSnapshot(
+      qRef,
+      (snap) => {
+        const list = snap.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+          _actorUid: partnerUid,
+        }));
+        setPartnerLogs(list);
+        setLoadingPartnerLogs(false);
+      },
+      (e) => {
+        setLoadingPartnerLogs(false);
+        Alert.alert("Error", e.message);
+      }
+    );
 
-      // 2) log
-      const colRef = collection(db, "users", user.uid, "miSaldoLogs");
-      await addDoc(colRef, {
-        amount: activeStep,
-        createdAt: serverTimestamp(),
-        type: "ingreso",
-      });
+    return () => unsub();
+  }, [partnerUid]);
 
-      Alert.alert("✅ Listo", `Se sumó ${fmtCRC(activeStep)} a tu Mi Saldo.`);
-    } catch (e) {
-      Alert.alert("Error", e?.message || "No se pudo sumar.");
+  // ====== Perfil del compañero (género para colores) ======
+  useEffect(() => {
+    if (!partnerUid) {
+      setPartnerProfile(null);
+      return;
     }
-  }, [user?.uid, activeStep, hasPending]);
 
+    const refDoc = doc(db, "users", partnerUid);
+    const unsub = onSnapshot(
+      refDoc,
+      (snap) => setPartnerProfile(snap.exists() ? snap.data() : null),
+      () => setPartnerProfile(null)
+    );
+    return () => unsub();
+  }, [partnerUid]);
+
+  // ====== Acciones ======
   const proposeStep = useCallback(async () => {
     if (!user?.uid || !configRef) return;
 
@@ -341,22 +395,23 @@ export default function MiSaldoScreen() {
           <Text style={styles.heroLabel}>Mi Saldo</Text>
           <Text style={styles.heroValue}>{fmtCRC(miSaldoNumber)}</Text>
 
-          <View style={styles.heroRow}>
-            <Pressable onPress={addIngreso} style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}>
-              <Ionicons name="add" size={18} color="#fff" />
-              <Text style={styles.primaryText}>Ingreso</Text>
-            </Pressable>
+          <Text style={styles.heroHint}>
+            Al ingresar salario en Perfil, se actualiza el saldo compartido del grupo (como en Perfil) y Mi Saldo acumula solo el apartado configurado.
+          </Text>
 
-            <Pressable onPress={openSet} style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}>
-              <Ionicons name="settings-outline" size={18} color="#111827" />
-              <Text style={styles.secondaryText}>Monto</Text>
-            </Pressable>
-          </View>
+          <Pressable
+            onPress={openSet}
+            style={({ pressed }) => [styles.montoBtnWide, pressed && styles.pressed]}
+          >
+            <Ionicons name="settings-outline" size={18} color="#111827" />
+            <Text style={styles.secondaryText}>Configurar monto por ingreso</Text>
+          </Pressable>
 
           <View style={styles.stepPill}>
             <Ionicons name="cash-outline" size={16} color="#111827" />
             <Text style={styles.stepText}>
-              Monto por ingreso: <Text style={{ fontWeight: "900" }}>{fmtCRC(activeStep)}</Text>
+              Monto que se suma por cada ingreso de salario:{" "}
+              <Text style={{ fontWeight: "900" }}>{fmtCRC(activeStep)}</Text>
             </Text>
           </View>
 
@@ -407,10 +462,10 @@ export default function MiSaldoScreen() {
         {/* ====== HISTORIAL ====== */}
         <View style={styles.card}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.cardTitle}>Historial de ingresos</Text>
+            <Text style={styles.cardTitle}>Historial (tú y tu compañero)</Text>
             <View style={styles.pill}>
               <Ionicons name="time-outline" size={14} color="#111827" />
-              <Text style={styles.pillText}>{logs.length}</Text>
+              <Text style={styles.pillText}>{mergedLogs.length}</Text>
             </View>
           </View>
 
@@ -419,22 +474,107 @@ export default function MiSaldoScreen() {
               <ActivityIndicator />
               <Text style={{ marginTop: 10, color: "#6B7280", fontWeight: "800" }}>Cargando…</Text>
             </View>
-          ) : logs.length === 0 ? (
+          ) : mergedLogs.length === 0 ? (
             <View style={styles.emptyBox}>
               <Ionicons name="information-circle-outline" size={18} color="#111827" />
-              <Text style={styles.emptyText}>Aún no hay ingresos registrados.</Text>
+              <Text style={styles.emptyText}>
+                Aquí aparecen los ingresos de salario desde Perfil (saldo compartido del grupo y apartado a Mi Saldo). Rosado: femenino · Azul: masculino.
+              </Text>
             </View>
           ) : (
             <View style={{ gap: 10, marginTop: 8 }}>
-              {logs.map((it) => {
+              {mergedLogs.map((it) => {
                 const d = it.createdAt?.toDate ? it.createdAt.toDate() : null;
                 const when = d ? `${d.toLocaleDateString()} • ${d.toLocaleTimeString()}` : "—";
+                const isFromPerfil = it.type === "salario_perfil" || typeof it.salaryAdded === "number";
+                const actorUid = it._actorUid || it.actorUid;
+                const isMine = actorUid === user?.uid;
+                const g = generoForLog(it);
+                const rowKey = `${actorUid || "x"}-${it.id}`;
+
+                const sharedAmount =
+                  typeof it.saldoCompartidoAfter === "number"
+                    ? it.saldoCompartidoAfter
+                    : it.saldoAfter ?? 0;
+                const sharedLabel =
+                  typeof it.saldoCompartidoAfter === "number"
+                    ? "Saldo compartido quedó en"
+                    : "Tu saldo individual quedó (hist.)";
+
+                if (it.type === "rebajo_mensual") {
+                  return (
+                    <View key={rowKey} style={[styles.logCard, logCardVariantStyle(g)]}>
+                      <View style={styles.logCardHeader}>
+                        <View style={styles.logActorBadge}>
+                          <Ionicons
+                            name={isMine ? "person" : "people-outline"}
+                            size={14}
+                            color="#111827"
+                          />
+                          <Text style={styles.logActorText}>
+                            {isMine ? "Tu movimiento" : "Tu compañero"}
+                          </Text>
+                        </View>
+                        <Text style={styles.logWhen}>{when}</Text>
+                      </View>
+                      <View style={styles.logLine}>
+                        <Text style={styles.logMuted}>Rebajo mensual</Text>
+                        <Text style={styles.logStrong}>{it.rebateName || "Rebajo"}</Text>
+                      </View>
+                      <View style={styles.logLine}>
+                        <Text style={styles.logMuted}>Descontado</Text>
+                        <Text style={[styles.logStrong, { color: "#B91C1C" }]}>
+                          −{fmtCRC(it.amount || 0)}
+                        </Text>
+                      </View>
+                      <View style={styles.logLine}>
+                        <Text style={styles.logMuted}>{sharedLabel}</Text>
+                        <Text style={styles.logStrong}>{fmtCRC(sharedAmount)}</Text>
+                      </View>
+                    </View>
+                  );
+                }
+
+                if (isFromPerfil) {
+                  return (
+                    <View key={rowKey} style={[styles.logCard, logCardVariantStyle(g)]}>
+                      <View style={styles.logCardHeader}>
+                        <View style={styles.logActorBadge}>
+                          <Ionicons
+                            name={isMine ? "person" : "people-outline"}
+                            size={14}
+                            color="#111827"
+                          />
+                          <Text style={styles.logActorText}>
+                            {isMine ? "Tu movimiento" : "Tu compañero"}
+                          </Text>
+                        </View>
+                        <Text style={styles.logWhen}>{when}</Text>
+                      </View>
+                      <View style={styles.logLine}>
+                        <Text style={styles.logMuted}>Salario ingresado</Text>
+                        <Text style={styles.logStrong}>{fmtCRC(it.salaryAdded || 0)}</Text>
+                      </View>
+                      <View style={styles.logLine}>
+                        <Text style={styles.logMuted}>{sharedLabel}</Text>
+                        <Text style={styles.logStrong}>{fmtCRC(sharedAmount)}</Text>
+                      </View>
+                      <View style={styles.logLine}>
+                        <Text style={styles.logMuted}>A Mi Saldo</Text>
+                        <Text style={styles.logAccent}>+{fmtCRC(it.miSaldoAdded || 0)}</Text>
+                      </View>
+                    </View>
+                  );
+                }
+
                 return (
-                  <View key={it.id} style={styles.logRow}>
+                  <View key={rowKey} style={[styles.logRow, logCardVariantStyle(g)]}>
                     <View style={styles.logLeft}>
                       <View style={styles.dot} />
                       <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={styles.logTitle}>Ingreso</Text>
+                        <Text style={styles.logTitle}>
+                          Ingreso manual (anterior) · {isMine ? "Tú" : "Compañero"}
+                        </Text>
                         <Text style={styles.logMeta} numberOfLines={1}>{when}</Text>
                       </View>
                     </View>
@@ -532,21 +672,22 @@ const styles = StyleSheet.create({
   heroLabel: { color: "rgba(255,255,255,0.75)", fontWeight: "900", fontSize: 12 },
   heroValue: { marginTop: 6, color: "#fff", fontWeight: "900", fontSize: 38, textAlign: "center" },
 
-  heroRow: { marginTop: 12, flexDirection: "row", gap: 10 },
-  primaryBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 999,
-    backgroundColor: "#111827",
+  heroHint: {
+    marginTop: 12,
+    color: "rgba(255,255,255,0.72)",
+    fontWeight: "700",
+    fontSize: 12,
+    lineHeight: 17,
+    textAlign: "center",
+    paddingHorizontal: 4,
   },
-  primaryText: { color: "#fff", fontWeight: "900" },
 
-  secondaryBtn: {
+  montoBtnWide: {
+    marginTop: 14,
+    width: "100%",
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 8,
     paddingVertical: 12,
     paddingHorizontal: 14,
@@ -652,6 +793,55 @@ const styles = StyleSheet.create({
   },
   emptyText: { flex: 1, color: "#111827", fontWeight: "800", opacity: 0.85, fontSize: 12, lineHeight: 16 },
 
+  logCard: {
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    backgroundColor: "rgba(17,24,39,0.03)",
+    borderWidth: 1,
+    borderLeftWidth: 4,
+    borderLeftColor: "#D1D5DB",
+    borderColor: "rgba(17,24,39,0.10)",
+    gap: 8,
+  },
+  logCardFem: {
+    borderLeftColor: "#ec4899",
+    backgroundColor: "rgba(236,72,153,0.10)",
+    borderColor: "rgba(236,72,153,0.22)",
+  },
+  logCardMasc: {
+    borderLeftColor: "#3b82f6",
+    backgroundColor: "rgba(59,130,246,0.10)",
+    borderColor: "rgba(59,130,246,0.22)",
+  },
+  logCardNeutral: {
+    borderLeftColor: "#9CA3AF",
+    backgroundColor: "rgba(17,24,39,0.05)",
+    borderColor: "rgba(17,24,39,0.12)",
+  },
+  logCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    marginBottom: 2,
+  },
+  logActorBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.65)",
+  },
+  logActorText: { fontSize: 11, fontWeight: "900", color: "#111827" },
+  logWhen: { fontSize: 11, fontWeight: "800", color: "#9CA3AF" },
+  logLine: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  logMuted: { flex: 1, fontSize: 12, fontWeight: "700", color: "#6B7280" },
+  logStrong: { fontSize: 13, fontWeight: "900", color: "#111827" },
+  logAccent: { fontSize: 13, fontWeight: "900", color: "#16A34A" },
+
   logRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -662,6 +852,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: "rgba(17,24,39,0.03)",
     borderWidth: 1,
+    borderLeftWidth: 4,
+    borderLeftColor: "#D1D5DB",
     borderColor: "rgba(17,24,39,0.10)",
   },
   logLeft: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 10 },

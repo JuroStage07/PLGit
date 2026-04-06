@@ -44,6 +44,7 @@ import AhorrosScreen from "./AhorrosScreen";
 import SolicitudesScreen from './SolicitudScreen';
 import MiSaldoScreen from './MiSaldoScreen';
 import ListaScreen from "./ListaScreen";
+import RebajosMensualesScreen from "./RebajosMensuales";
 
 const Tab = createBottomTabNavigator();
 
@@ -69,18 +70,13 @@ const logout = async () => {
   }
 };
 
-function ScreenTemplate({ title }) {
-  return (
-    <View style={styles.screen}>
-      <Text style={styles.title}>{title}</Text>
-    </View>
-  );
-}
-
-// Screens (placeholder)
-const RebajosMensuales = () => <ScreenTemplate title="Rebajos mensuales" />;
-const SaldoIndividual = () => <ScreenTemplate title="Saldo individual" />;
-const ListaDeseos = () => <ScreenTemplate title="Lista de deseos" />;
+// Placeholder
+const ListaDeseos = () => (
+  <View style={styles.screen}>
+    <Text style={styles.title}>Lista de deseos</Text>
+    <Text style={styles.placeholderSub}>Próximamente</Text>
+  </View>
+);
 
 function RequireGroup({ children }) {
   const navigation = useNavigation();
@@ -532,8 +528,6 @@ export default function MainTabs() {
             switch (route.name) {
               case 'Rebajos':
                 return <MaterialCommunityIcons name="calendar-month" size={size} color={color} />;
-              case 'SaldoInd':
-                return <Ionicons name="person-circle-outline" size={size} color={color} />;
               case 'Ahorros':
                 return <Ionicons name="wallet-outline" size={size} color={color} />;
               case 'Solicitud':
@@ -559,15 +553,7 @@ export default function MainTabs() {
         >
           {() => (
             <RequireGroup>
-              <RebajosMensuales />
-            </RequireGroup>
-          )}
-        </Tab.Screen>
-
-        <Tab.Screen name="SaldoInd" options={{ title: 'Saldo individual' }}>
-          {() => (
-            <RequireGroup>
-              <SaldoIndividual />
+              <RebajosMensualesScreen />
             </RequireGroup>
           )}
         </Tab.Screen>
@@ -819,6 +805,7 @@ export default function MainTabs() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', padding: 24 },
   title: { fontSize: 22, fontWeight: '700', },
+  placeholderSub: { marginTop: 10, fontSize: 14, color: '#6B7280', fontWeight: '600' },
 
   headerBtn: {
     marginRight: 12,
