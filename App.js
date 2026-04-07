@@ -12,11 +12,20 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import Constants from "expo-constants";
+import { getGoogleSignInLib } from "./googleSignInLib";
 
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  onAuthStateChanged,
+  GoogleAuthProvider,
+  signInWithCredential,
+} from "firebase/auth";
+import { doc, setDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
 import { db, auth as firebaseAuth } from "./firebaseConfig";
 
 import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
@@ -25,7 +34,10 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import MainTabs from "./tabs/MainTabs"; // ✅ default import
 import { PL } from "./theme/plTheme";
 import LoveBubbleBackground from "./components/LoveBubbleBackground";
+import GoogleLogoMark from "./components/GoogleLogoMark";
+import CompleteProfileScreen from "./screens/CompleteProfileScreen";
 import { DialogProvider, useDialog } from "./context/DialogContext";
+
 /** Fondo transparente para ver burbujas y PL.bg detrás (stack + tabs) */
 const navigationTheme = {
   ...DefaultTheme,
@@ -42,6 +54,63 @@ function HomeScreen() {
   const { info } = useDialog();
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  const googleWebClientId = Constants.expoConfig?.extra?.googleWebClientId;
+
+  const googleSignInLib = useMemo(() => getGoogleSignInLib(), []);
+
+  useEffect(() => {
+    if (!googleWebClientId || !googleSignInLib) return;
+    googleSignInLib.GoogleSignin.configure({
+      webClientId: googleWebClientId,
+      offlineAccess: false,
+    });
+  }, [googleWebClientId, googleSignInLib]);
+
+  const onGooglePress = async () => {
+    if (!googleWebClientId) {
+      info("Google", "Falta configurar el cliente OAuth (googleWebClientId).");
+      return;
+    }
+    const lib = googleSignInLib || getGoogleSignInLib();
+    if (!lib) {
+      info(
+        "Google no disponible aquí",
+        "El inicio con Google requiere la app compilada con código nativo. Cierra Expo Go y ejecuta: npx expo run:android"
+      );
+      return;
+    }
+    const { GoogleSignin, statusCodes, isErrorWithCode } = lib;
+    setGoogleLoading(true);
+    try {
+      if (Platform.OS === "android") {
+        await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      }
+      const result = await GoogleSignin.signIn();
+      if (result.type === "cancelled") {
+        return;
+      }
+      if (result.type !== "success") {
+        return;
+      }
+      const tokens = await GoogleSignin.getTokens();
+      const idToken = tokens.idToken;
+      if (!idToken) {
+        info("Google", "No se recibió el token de identidad. Revisa SHA-1 en Firebase y el Web client ID.");
+        return;
+      }
+      const credential = GoogleAuthProvider.credential(idToken);
+      await signInWithCredential(firebaseAuth, credential);
+    } catch (e) {
+      if (isErrorWithCode(e) && e.code === statusCodes.SIGN_IN_CANCELLED) {
+        return;
+      }
+      info("Error", e?.message || "No se pudo iniciar sesión con Google.");
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   const isValidEmail = (value) =>
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
@@ -210,6 +279,35 @@ function HomeScreen() {
           >
             <Text style={styles.secondaryBtnText}>Registro</Text>
           </Pressable>
+
+          {googleSignInLib ? (
+            <>
+              <View style={styles.dividerRow}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>o</Text>
+                <View style={styles.dividerLine} />
+              </View>
+
+              <Pressable
+                style={({ pressed }) => [
+                  styles.googleBtn,
+                  googleLoading && { opacity: 0.55 },
+                  pressed && styles.pressed,
+                ]}
+                onPress={onGooglePress}
+                disabled={googleLoading || !googleWebClientId}
+              >
+                {googleLoading ? (
+                  <ActivityIndicator color={PL.ink} />
+                ) : (
+                  <>
+                    <GoogleLogoMark size={22} />
+                    <Text style={styles.googleBtnText}>Continuar con Google</Text>
+                  </>
+                )}
+              </Pressable>
+            </>
+          ) : null}
         </View>
 
         <Text style={styles.footer}>MoniJuro™</Text>
@@ -392,8 +490,39 @@ function HomeScreen() {
                   </View>
 
                   <Text style={styles.modalSubtitle}>
-                    Ingresa con tu correo y contraseña.
+                    {googleSignInLib
+                      ? "Ingresa con tu correo y contraseña, o usa Google."
+                      : "Ingresa con tu correo y contraseña."}
                   </Text>
+
+                  {googleSignInLib ? (
+                    <>
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.googleBtn,
+                          googleLoading && { opacity: 0.55 },
+                          pressed && styles.pressed,
+                        ]}
+                        onPress={onGooglePress}
+                        disabled={googleLoading || !googleWebClientId}
+                      >
+                        {googleLoading ? (
+                          <ActivityIndicator color={PL.ink} />
+                        ) : (
+                          <>
+                            <GoogleLogoMark size={22} />
+                            <Text style={styles.googleBtnText}>Continuar con Google</Text>
+                          </>
+                        )}
+                      </Pressable>
+
+                      <View style={styles.dividerRow}>
+                        <View style={styles.dividerLine} />
+                        <Text style={styles.dividerText}>o con correo</Text>
+                        <View style={styles.dividerLine} />
+                      </View>
+                    </>
+                  ) : null}
 
                   <View style={styles.form}>
                     <Text style={styles.label}>Correo electrónico</Text>
@@ -459,6 +588,8 @@ function HomeScreen() {
 function AuthGate() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [needsProfile, setNeedsProfile] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(true);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(firebaseAuth, (u) => {
@@ -468,7 +599,44 @@ function AuthGate() {
     return unsub;
   }, []);
 
-  if (loading) return null;
+  useEffect(() => {
+    if (!user?.uid) {
+      setNeedsProfile(false);
+      setProfileLoading(false);
+      return;
+    }
+    setProfileLoading(true);
+    const refDoc = doc(db, "users", user.uid);
+    const unsub = onSnapshot(
+      refDoc,
+      (snap) => {
+        const data = snap.data();
+        const handle = String(data?.usuario || "").trim().toLowerCase();
+        setNeedsProfile(handle.length < 3);
+        setProfileLoading(false);
+      },
+      () => {
+        setNeedsProfile(true);
+        setProfileLoading(false);
+      }
+    );
+    return unsub;
+  }, [user?.uid]);
+
+  if (loading || (user && profileLoading)) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: PL.bg,
+        }}
+      >
+        <ActivityIndicator size="large" color={PL.cta} />
+      </View>
+    );
+  }
 
   return (
     <Stack.Navigator
@@ -477,8 +645,10 @@ function AuthGate() {
         contentStyle: { backgroundColor: "transparent" },
       }}
     >
-      {user ? (
+      {user && !needsProfile ? (
         <Stack.Screen name="MainScreen" component={MainTabs} />
+      ) : user && needsProfile ? (
+        <Stack.Screen name="CompleteProfile" component={CompleteProfileScreen} />
       ) : (
         <Stack.Screen name="Home" component={HomeScreen} />
       )}
@@ -570,6 +740,47 @@ const styles = StyleSheet.create({
   secondaryBtnText: {
     color: PL.rose,
     fontSize: 16,
+    fontWeight: '800',
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  dividerLine: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: PL.skyBorder,
+  },
+  dividerText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: PL.textSubtle,
+    opacity: 0.85,
+  },
+  googleBtn: {
+    width: '100%',
+    paddingVertical: 13,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 10,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#DADCE0',
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  googleBtnText: {
+    color: PL.ink,
+    fontSize: 15,
     fontWeight: '800',
   },
   pressed: {
