@@ -1,13 +1,16 @@
 // screens/PartnerScreen.js
 import React, { useEffect, useMemo, useState, useCallback } from "react";
-import { View, ScrollView, Text, StyleSheet, Pressable, Alert, Modal, TextInput, TouchableWithoutFeedback, ActivityIndicator } from "react-native";
+import { View, ScrollView, Text, StyleSheet, Pressable, Modal, TextInput, TouchableWithoutFeedback, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { auth as firebaseAuth, db, functions } from "../firebaseConfig";
 import { httpsCallable } from "firebase/functions";
 import { doc, onSnapshot, getDocs, collection, updateDoc, serverTimestamp, setDoc, deleteDoc, deleteField } from "firebase/firestore";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { PL } from "../theme/plTheme";
+import { useDialog } from "../context/DialogContext";
 
 export default function PartnerScreen() {
+    const { info, confirm } = useDialog();
     const user = firebaseAuth.currentUser;
 
     const [loading, setLoading] = useState(true);
@@ -77,7 +80,7 @@ export default function PartnerScreen() {
             },
             (e) => {
                 setLoading(false);
-                Alert.alert("Error", e.message);
+                info("Error", e.message);
             }
         );
 
@@ -133,7 +136,7 @@ export default function PartnerScreen() {
             const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
             setIncoming(list);
         } catch (e) {
-            Alert.alert("Error", e.message);
+            info("Error", e.message);
         } finally {
             setLoadingIncoming(false);
         }
@@ -171,11 +174,11 @@ export default function PartnerScreen() {
             const fn = httpsCallable(functions, "breakPartnerRelationship");
             await fn();
 
-            Alert.alert("Relación eliminada", "La relación y el grupo fueron eliminados.");
+            info("Relación eliminada", "La relación y el grupo fueron eliminados.");
 
             setBreakOpen(false);
         } catch (e) {
-            Alert.alert("Error", e?.message || "No se pudo romper la relación.");
+            info("Error", e?.message || "No se pudo romper la relación.");
         } finally {
             setBreaking(false);
         }
@@ -186,7 +189,7 @@ export default function PartnerScreen() {
 
         const h = normalizeHandle(handle);
         if (!h) {
-            Alert.alert("Dato requerido", "Escribe un usuario, por ejemplo: @maria");
+            info("Dato requerido", "Escribe un usuario, por ejemplo: @maria");
             return;
         }
 
@@ -195,11 +198,11 @@ export default function PartnerScreen() {
             const fn = httpsCallable(functions, "sendPartnerRequest");
             await fn({ toUsuario: h });
 
-            Alert.alert("✅ Solicitud enviada", `Solicitud enviada a @${h}`);
+            info("✅ Solicitud enviada", `Solicitud enviada a @${h}`);
             setHandle("");
             setIsFindOpen(false);
         } catch (e) {
-            Alert.alert("Error", e?.message || "No se pudo enviar la solicitud.");
+            info("Error", e?.message || "No se pudo enviar la solicitud.");
         } finally {
             setFinding(false);
         }
@@ -211,7 +214,7 @@ export default function PartnerScreen() {
             await fn({ fromUid: req.fromUid });
             await loadIncoming();
         } catch (e) {
-            Alert.alert("Error", e?.message || "No se pudo rechazar.");
+            info("Error", e?.message || "No se pudo rechazar.");
         }
     };
 
@@ -220,12 +223,12 @@ export default function PartnerScreen() {
             const fn = httpsCallable(functions, "acceptPartnerRequest");
             await fn({ fromUid: req.fromUid });
 
-            Alert.alert("💖 Emparejados", `Ahora estás conectado con @${req.fromUsuario || ""}`);
+            info("💖 Emparejados", `Ahora estás conectado con @${req.fromUsuario || ""}`);
             await loadIncoming();
             setIncomingOpen(false);
             setIsFindOpen(false);
         } catch (e) {
-            Alert.alert("Error", e?.message || "No se pudo aceptar.");
+            info("Error", e?.message || "No se pudo aceptar.");
         }
     };
 
@@ -252,13 +255,13 @@ export default function PartnerScreen() {
     const createGroup = async () => {
         if (!user?.uid) return;
         if (!hasPartner) {
-            Alert.alert("Sin compañero", "Debes estar emparejado para crear un grupo.");
+            info("Sin compañero", "Debes estar emparejado para crear un grupo.");
             return;
         }
 
         const name = sanitizeGroupName(groupName);
         if (!name) {
-            Alert.alert("Dato requerido", "Escribe un nombre para el grupo.");
+            info("Dato requerido", "Escribe un nombre para el grupo.");
             return;
         }
 
@@ -291,10 +294,10 @@ export default function PartnerScreen() {
                 updateDoc(partnerRef, userPayload),
             ]);
 
-            Alert.alert("✅ Grupo creado", `Grupo "${name}" listo.`);
+            info("✅ Grupo creado", `Grupo "${name}" listo.`);
             closeGroupModal();
         } catch (e) {
-            Alert.alert("Error", e?.message || "No se pudo crear el grupo.");
+            info("Error", e?.message || "No se pudo crear el grupo.");
         } finally {
             setCreatingGroup(false);
         }
@@ -307,7 +310,7 @@ export default function PartnerScreen() {
         if (!groupId) return;
 
         if (!hasPartner) {
-            Alert.alert("Sin compañero", "No se puede eliminar el grupo sin compañero vinculado.");
+            info("Sin compañero", "No se puede eliminar el grupo sin compañero vinculado.");
             return;
         }
 
@@ -333,16 +336,16 @@ export default function PartnerScreen() {
                 updateDoc(partnerRef, clearPayload),
             ]);
 
-            Alert.alert("✅ Grupo eliminado", "Se eliminó el grupo y se limpió en ambos perfiles.");
+            info("✅ Grupo eliminado", "Se eliminó el grupo y se limpió en ambos perfiles.");
         } catch (e) {
-            Alert.alert("Error", e?.message || "No se pudo eliminar el grupo.");
+            info("Error", e?.message || "No se pudo eliminar el grupo.");
         } finally {
             setCreatingGroup(false);
         }
     };
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: "#0B1220" }} edges={["left", "right", "bottom"]}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }} edges={["left", "right"]}>
 <ScrollView
     style={styles.container}
     contentContainerStyle={styles.content}
@@ -531,13 +534,15 @@ export default function PartnerScreen() {
                                 ]}
                                 disabled={creatingGroup}
                                 onPress={() => {
-                                    Alert.alert(
+                                    confirm(
                                         "Eliminar grupo",
                                         "¿Seguro? Esto quitará el grupo para ambos usuarios.",
-                                        [
-                                            { text: "Cancelar", style: "cancel" },
-                                            { text: "Eliminar", style: "destructive", onPress: deleteGroup },
-                                        ]
+                                        {
+                                            confirmText: "Eliminar",
+                                            cancelText: "Cancelar",
+                                            destructive: true,
+                                            onConfirm: deleteGroup,
+                                        }
                                     );
                                 }}
                             >
@@ -806,9 +811,10 @@ function HalfHeart({ side, color }) {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: "#0B1220", padding: 16 },
-    loadingWrap: { flex: 1, backgroundColor: "#0B1220", alignItems: "center", justifyContent: "center", padding: 16 },
-    loadingText: { marginTop: 10, color: "rgba(255,255,255,0.75)" },
+    content: { paddingBottom: 24, flexGrow: 1 },
+    container: { flex: 1, backgroundColor: "transparent", padding: 16 },
+    loadingWrap: { flex: 1, backgroundColor: "transparent", alignItems: "center", justifyContent: "center", padding: 16 },
+    loadingText: { marginTop: 10, color: PL.textMuted },
 
     card: {
         backgroundColor: "rgba(255,255,255,0.97)",
@@ -833,7 +839,7 @@ const styles = StyleSheet.create({
     partnerTitleRomantic: { fontSize: 14, fontWeight: "900", color: "#111827" },
     partnerSubRomantic: { marginTop: 2, fontSize: 12, color: "#6B7280", fontWeight: "800" },
 
-    partnerCta: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 999, backgroundColor: "#111827" },
+    partnerCta: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 999, backgroundColor: PL.cta },
     partnerCtaText: { color: "#fff", fontWeight: "900" },
 
     personInitial: { fontWeight: "900", color: "#111827", fontSize: 16 },
@@ -888,10 +894,10 @@ const styles = StyleSheet.create({
     handlePrefix: { paddingHorizontal: 14, fontWeight: "900", color: "#111827", opacity: 0.6, fontSize: 16 },
     handleInput: { flex: 1, height: 48, paddingHorizontal: 10, color: "#111827", fontWeight: "800", fontSize: 16 },
 
-    findOkBtn: { marginTop: 12, backgroundColor: "#111827", borderRadius: 14, paddingVertical: 12, alignItems: "center" },
+    findOkBtn: { marginTop: 12, backgroundColor: PL.cta, borderRadius: 14, paddingVertical: 12, alignItems: "center" },
     findOkText: { color: "#fff", fontWeight: "900", fontSize: 15 },
 
-    modalPrimaryBtn: { width: "100%", paddingVertical: 14, borderRadius: 14, alignItems: "center", backgroundColor: "#111827" },
+    modalPrimaryBtn: { width: "100%", paddingVertical: 14, borderRadius: 14, alignItems: "center", backgroundColor: PL.cta },
     modalPrimaryBtnText: { color: "#fff", fontSize: 16, fontWeight: "900" },
     modalSecondaryBtn: { width: "100%", paddingVertical: 14, borderRadius: 14, alignItems: "center", backgroundColor: "#F3F4F6", marginTop: 10 },
     modalSecondaryBtnText: { color: "#111827", fontSize: 16, fontWeight: "800" },

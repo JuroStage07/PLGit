@@ -5,7 +5,6 @@ import {
   Text,
   StyleSheet,
   Pressable,
-  Alert,
   Modal,
   TextInput,
   KeyboardAvoidingView,
@@ -28,6 +27,7 @@ import {
   deleteDoc,
 } from "firebase/firestore";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { PL } from "../theme/plTheme";
 
 export default function SolicitudesScreen({ navigation }) {
   const user = firebaseAuth.currentUser;
@@ -73,7 +73,7 @@ export default function SolicitudesScreen({ navigation }) {
       },
       (e) => {
         setLoadingProfile(false);
-        Alert.alert("Error", e.message);
+        info("Error", e.message);
       }
     );
 
@@ -101,7 +101,7 @@ export default function SolicitudesScreen({ navigation }) {
       },
       (e) => {
         setLoadingItems(false);
-        Alert.alert("Error", e.message);
+        info("Error", e.message);
       }
     );
 
@@ -169,7 +169,7 @@ export default function SolicitudesScreen({ navigation }) {
     if (!user?.uid) return;
 
     if (!hasGroup) {
-      Alert.alert("Sin grupo", "Primero crea un grupo en la pestaña Partner.");
+      info("Sin grupo", "Primero crea un grupo en la pestaña Partner.");
       return;
     }
 
@@ -178,11 +178,11 @@ export default function SolicitudesScreen({ navigation }) {
     const note = String(noteInput || "").trim();
 
     if (title.length < 2) {
-      Alert.alert("Dato requerido", "Escribe al menos 2 caracteres describiendo qué quieres comprar.");
+      info("Dato requerido", "Escribe al menos 2 caracteres describiendo qué quieres comprar.");
       return;
     }
     if (!Number.isFinite(price) || price <= 0) {
-      Alert.alert("Precio inválido", "Ingresa un precio mayor a 0.");
+      info("Precio inválido", "Ingresa un precio mayor a 0.");
       return;
     }
 
@@ -202,7 +202,7 @@ export default function SolicitudesScreen({ navigation }) {
 
       closeCreate();
     } catch (e) {
-      Alert.alert("Error", e?.message || "No se pudo crear.");
+      info("Error", e?.message || "No se pudo crear.");
     } finally {
       setCreating(false);
     }
@@ -237,10 +237,10 @@ export default function SolicitudesScreen({ navigation }) {
         acceptedBy: user?.uid || "",
       });
 
-      Alert.alert("✅ Aprobado", "Solicitud aprobada.");
+      info("✅ Aprobado", "Solicitud aprobada.");
       closeReview();
     } catch (e) {
-      Alert.alert("Error", e?.message || "No se pudo aprobar.");
+      info("Error", e?.message || "No se pudo aprobar.");
     } finally {
       setReviewing(false);
     }
@@ -256,10 +256,10 @@ export default function SolicitudesScreen({ navigation }) {
       // simple: borramos el pendiente
       await deleteDoc(ref);
 
-      Alert.alert("Listo", "Solicitud rechazada y eliminada.");
+      info("Listo", "Solicitud rechazada y eliminada.");
       closeReview();
     } catch (e) {
-      Alert.alert("Error", e?.message || "No se pudo rechazar.");
+      info("Error", e?.message || "No se pudo rechazar.");
     } finally {
       setReviewing(false);
     }
@@ -301,7 +301,7 @@ export default function SolicitudesScreen({ navigation }) {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#0B1220" }} edges={["left", "right", "bottom"]}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }} edges={["left", "right"]}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         {/* ===== DASHBOARD ===== */}
         <View style={styles.headerCard}>
@@ -684,10 +684,12 @@ export default function SolicitudesScreen({ navigation }) {
 
                     <Pressable
                       onPress={() => {
-                        Alert.alert("Rechazar solicitud", "Se eliminará esta solicitud y no podrá recuperarse.", [
-                          { text: "Volver", style: "cancel" },
-                          { text: "Rechazar", style: "destructive", onPress: rejectSelected },
-                        ]);
+                        confirm("Rechazar solicitud", "Se eliminará esta solicitud y no podrá recuperarse.", {
+                          confirmText: "Rechazar",
+                          cancelText: "Volver",
+                          destructive: true,
+                          onConfirm: rejectSelected,
+                        });
                       }}
                       disabled={reviewing}
                       style={({ pressed }) => [
@@ -716,19 +718,19 @@ export default function SolicitudesScreen({ navigation }) {
 
 /* ------------------ STYLES (misma vibra del app) ------------------ */
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0B1220" },
+  container: { flex: 1, backgroundColor: "transparent" },
   content: { padding: 16, paddingBottom: 26 },
 
-  loadingWrap: { flex: 1, backgroundColor: "#0B1220", alignItems: "center", justifyContent: "center", padding: 16 },
-  loadingText: { marginTop: 10, color: "rgba(255,255,255,0.75)", fontWeight: "800" },
+  loadingWrap: { flex: 1, backgroundColor: "transparent", alignItems: "center", justifyContent: "center", padding: 16 },
+  loadingText: { marginTop: 10, color: PL.textMuted, fontWeight: "800" },
 
   headerCard: {
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: PL.headerCardBg,
     borderRadius: 20,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    borderColor: PL.headerCardBorder,
   },
 
   headerTopRow: {
@@ -748,8 +750,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  headerTitle: { color: "#fff", fontWeight: "900", fontSize: 16 },
-  headerSub: { marginTop: 4, color: "rgba(255,255,255,0.72)", fontWeight: "700", fontSize: 12, lineHeight: 16 },
+  headerTitle: { color: PL.ink, fontWeight: "900", fontSize: 16 },
+  headerSub: { marginTop: 4, color: PL.textMuted, fontWeight: "700", fontSize: 12, lineHeight: 16 },
 
   headerCtaWide: {
     marginTop: 14,
@@ -759,7 +761,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 14,
     borderRadius: 16,
-    backgroundColor: "#111827",
+    backgroundColor: PL.cta,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.12)",
   },
@@ -777,15 +779,15 @@ const styles = StyleSheet.create({
   kpiRow: { marginTop: 14, flexDirection: "row", gap: 10 },
   kpiBox: {
     flex: 1,
-    backgroundColor: "rgba(255,255,255,0.10)",
+    backgroundColor: PL.skyLight,
     borderRadius: 16,
     paddingVertical: 12,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    borderColor: PL.skyBorder,
   },
-  kpiLabel: { color: "rgba(255,255,255,0.75)", fontWeight: "800", fontSize: 11 },
-  kpiValue: { marginTop: 6, color: "#fff", fontWeight: "900", fontSize: 14 },
+  kpiLabel: { color: PL.textMuted, fontWeight: "800", fontSize: 11 },
+  kpiValue: { marginTop: 6, color: PL.ink, fontWeight: "900", fontSize: 14 },
 
   card: {
     backgroundColor: "rgba(255,255,255,0.97)",
@@ -879,7 +881,7 @@ const styles = StyleSheet.create({
   itemAmount: { fontWeight: "900", color: "#111827" },
   itemMini: { marginTop: 4, fontWeight: "900", color: "#6B7280", fontSize: 11 },
 
-  footer: { marginTop: 6, color: "rgba(255,255,255,0.55)", textAlign: "center", fontSize: 12 },
+  footer: { marginTop: 6, color: PL.textSubtle, textAlign: "center", fontSize: 12 },
   pressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
 
   // bloqueo sin grupo
@@ -917,7 +919,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 22,
     borderRadius: 999,
-    backgroundColor: "#111827",
+    backgroundColor: PL.cta,
     width: "100%",
     maxWidth: 280,
   },
@@ -1035,7 +1037,7 @@ const styles = StyleSheet.create({
   modalFooter: { marginTop: 8, paddingTop: 4, gap: 10, borderTopWidth: 1, borderTopColor: "#F3F4F6" },
   footerHint: { fontSize: 11, color: "#9CA3AF", fontWeight: "700", textAlign: "center", lineHeight: 15 },
 
-  primaryBtn: { width: "100%", paddingVertical: 15, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "#111827" },
+  primaryBtn: { width: "100%", paddingVertical: 15, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: PL.cta },
   primaryBtnRow: { flexDirection: "row", gap: 10 },
   primaryBtnDisabled: { backgroundColor: "#9CA3AF" },
   primaryText: { color: "#fff", fontSize: 16, fontWeight: "900" },
@@ -1152,7 +1154,7 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingVertical: 16,
     borderRadius: 14,
-    backgroundColor: "#111827",
+    backgroundColor: PL.cta,
   },
   approveTextWide: { color: "#fff", fontWeight: "900", fontSize: 16 },
   rejectBtnWide: {

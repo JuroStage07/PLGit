@@ -5,7 +5,6 @@ import {
   Text,
   StyleSheet,
   Pressable,
-  Alert,
   Modal,
   TextInput,
   TouchableWithoutFeedback,
@@ -28,8 +27,11 @@ import {
   query,
   orderBy,
 } from "firebase/firestore";
+import { PL } from "../theme/plTheme";
+import { useDialog } from "../context/DialogContext";
 
 export default function MiSaldoScreen() {
+  const { info, confirm } = useDialog();
   const user = firebaseAuth.currentUser;
 
   const [profile, setProfile] = useState(null);
@@ -162,7 +164,7 @@ export default function MiSaldoScreen() {
       },
       (e) => {
         setLoadingProfile(false);
-        Alert.alert("Error", e.message);
+        info("Error", e.message);
       }
     );
 
@@ -197,7 +199,7 @@ export default function MiSaldoScreen() {
       },
       (e) => {
         setLoadingConfig(false);
-        Alert.alert("Error", e.message);
+        info("Error", e.message);
       }
     );
 
@@ -229,7 +231,7 @@ export default function MiSaldoScreen() {
       },
       (e) => {
         setLoadingMyLogs(false);
-        Alert.alert("Error", e.message);
+        info("Error", e.message);
       }
     );
 
@@ -261,7 +263,7 @@ export default function MiSaldoScreen() {
       },
       (e) => {
         setLoadingPartnerLogs(false);
-        Alert.alert("Error", e.message);
+        info("Error", e.message);
       }
     );
 
@@ -290,7 +292,7 @@ export default function MiSaldoScreen() {
 
     const amount = Number(sanitizeAmount(amountInput));
     if (!Number.isFinite(amount) || amount <= 0) {
-      Alert.alert("Monto inválido", "Escribe un monto mayor a 0.");
+      info("Monto inválido", "Escribe un monto mayor a 0.");
       return;
     }
 
@@ -303,10 +305,10 @@ export default function MiSaldoScreen() {
         pendingAt: serverTimestamp(),
       });
 
-      Alert.alert("✅ Enviado", "Monto propuesto. Tu compañero debe aprobarlo.");
+      info("✅ Enviado", "Monto propuesto. Tu compañero debe aprobarlo.");
       closeSet();
     } catch (e) {
-      Alert.alert("Error", e?.message || "No se pudo proponer.");
+      info("Error", e?.message || "No se pudo proponer.");
     } finally {
       setSaving(false);
     }
@@ -329,9 +331,9 @@ export default function MiSaldoScreen() {
         pendingAt: null,
       });
 
-      Alert.alert("✅ Aprobado", `Monto por ingreso actualizado a ${fmtCRC(pendingValue)}.`);
+      info("✅ Aprobado", `Monto por ingreso actualizado a ${fmtCRC(pendingValue)}.`);
     } catch (e) {
-      Alert.alert("Error", e?.message || "No se pudo aprobar.");
+      info("Error", e?.message || "No se pudo aprobar.");
     } finally {
       setSaving(false);
     }
@@ -353,9 +355,9 @@ export default function MiSaldoScreen() {
         pendingAt: null,
       });
 
-      Alert.alert("Listo", "Monto rechazado.");
+      info("Listo", "Monto rechazado.");
     } catch (e) {
-      Alert.alert("Error", e?.message || "No se pudo rechazar.");
+      info("Error", e?.message || "No se pudo rechazar.");
     } finally {
       setSaving(false);
     }
@@ -388,7 +390,7 @@ export default function MiSaldoScreen() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#0B1220" }} edges={["left", "right", "bottom"]}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }} edges={["left", "right"]}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         {/* ====== SALDO GRANDE ====== */}
         <View style={styles.hero}>
@@ -442,10 +444,12 @@ export default function MiSaldoScreen() {
 
                   <Pressable
                     onPress={() => {
-                      Alert.alert("Rechazar", "¿Seguro que deseas rechazar este monto?", [
-                        { text: "Cancelar", style: "cancel" },
-                        { text: "Rechazar", style: "destructive", onPress: rejectPending },
-                      ]);
+                      confirm("Rechazar", "¿Seguro que deseas rechazar este monto?", {
+                        confirmText: "Rechazar",
+                        cancelText: "Cancelar",
+                        destructive: true,
+                        onConfirm: rejectPending,
+                      });
                     }}
                     disabled={saving}
                     style={({ pressed }) => [styles.rejectBtn, pressed && styles.pressed, saving && { opacity: 0.6 }]}
@@ -654,27 +658,27 @@ export default function MiSaldoScreen() {
 
 /* ------------------ STYLES ------------------ */
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0B1220" },
+  container: { flex: 1, backgroundColor: "transparent" },
   content: { padding: 16, paddingBottom: 26 },
 
-  loadingWrap: { flex: 1, backgroundColor: "#0B1220", alignItems: "center", justifyContent: "center", padding: 16 },
-  loadingText: { marginTop: 10, color: "rgba(255,255,255,0.75)", fontWeight: "800" },
+  loadingWrap: { flex: 1, backgroundColor: "transparent", alignItems: "center", justifyContent: "center", padding: 16 },
+  loadingText: { marginTop: 10, color: PL.textMuted, fontWeight: "800" },
 
   hero: {
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: PL.headerCardBg,
     borderRadius: 20,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    borderColor: PL.headerCardBorder,
     alignItems: "center",
   },
-  heroLabel: { color: "rgba(255,255,255,0.75)", fontWeight: "900", fontSize: 12 },
-  heroValue: { marginTop: 6, color: "#fff", fontWeight: "900", fontSize: 38, textAlign: "center" },
+  heroLabel: { color: PL.textMuted, fontWeight: "900", fontSize: 12 },
+  heroValue: { marginTop: 6, color: PL.rose, fontWeight: "900", fontSize: 38, textAlign: "center" },
 
   heroHint: {
     marginTop: 12,
-    color: "rgba(255,255,255,0.72)",
+    color: PL.textMuted,
     fontWeight: "700",
     fontSize: 12,
     lineHeight: 17,
@@ -710,7 +714,7 @@ const styles = StyleSheet.create({
   },
   stepText: { color: "#111827", fontWeight: "800" },
 
-  pendingMini: { marginTop: 10, color: "rgba(255,255,255,0.65)", fontWeight: "800" },
+  pendingMini: { marginTop: 10, color: PL.textMuted, fontWeight: "800" },
 
   pendingBox: {
     marginTop: 12,
@@ -735,7 +739,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 14,
-    backgroundColor: "#111827",
+    backgroundColor: PL.cta,
   },
   approveText: { color: "#fff", fontWeight: "900" },
 
@@ -862,7 +866,7 @@ const styles = StyleSheet.create({
   logMeta: { marginTop: 2, fontWeight: "800", color: "#6B7280", fontSize: 12 },
   logAmount: { fontWeight: "900", color: "#111827" },
 
-  footer: { marginTop: 6, color: "rgba(255,255,255,0.55)", textAlign: "center", fontSize: 12 },
+  footer: { marginTop: 6, color: PL.textSubtle, textAlign: "center", fontSize: 12 },
   pressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
 
   // bloqueo sin grupo
@@ -910,7 +914,7 @@ const styles = StyleSheet.create({
   preview: { marginTop: 8, fontSize: 12, color: "#6B7280" },
   previewStrong: { color: "#111827", fontWeight: "900" },
 
-  modalPrimaryBtn: { width: "100%", paddingVertical: 14, borderRadius: 14, alignItems: "center", backgroundColor: "#111827" },
+  modalPrimaryBtn: { width: "100%", paddingVertical: 14, borderRadius: 14, alignItems: "center", backgroundColor: PL.cta },
   modalPrimaryText: { color: "#fff", fontSize: 16, fontWeight: "900" },
   modalSecondaryBtn: { width: "100%", paddingVertical: 14, borderRadius: 14, alignItems: "center", backgroundColor: "#F3F4F6" },
   modalSecondaryText: { color: "#111827", fontSize: 16, fontWeight: "800" },

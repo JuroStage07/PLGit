@@ -11,7 +11,7 @@ import {
   Platform,
   TouchableWithoutFeedback,
   Keyboard,
-  Alert,
+  Image,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
@@ -19,15 +19,27 @@ import { createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthState
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db, auth as firebaseAuth } from "./firebaseConfig";
 
-import { NavigationContainer } from '@react-navigation/native';
+import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import MainTabs from "./tabs/MainTabs"; // ✅ default import
-
+import { PL } from "./theme/plTheme";
+import LoveBubbleBackground from "./components/LoveBubbleBackground";
+import { DialogProvider, useDialog } from "./context/DialogContext";
+/** Fondo transparente para ver burbujas y PL.bg detrás (stack + tabs) */
+const navigationTheme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    background: "transparent",
+    card: "transparent",
+  },
+};
 
 const Stack = createNativeStackNavigator();
 
 function HomeScreen() {
+  const { info } = useDialog();
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
 
@@ -56,7 +68,7 @@ function HomeScreen() {
 
   const login = async () => {
     if (!canLogin) {
-      Alert.alert("Revisa tus datos", "Correo válido y contraseña (mín. 6).");
+      info("Revisa tus datos", "Correo válido y contraseña (mín. 6).");
       return;
     }
 
@@ -67,7 +79,7 @@ function HomeScreen() {
         loginForm.password
       );
 
-      Alert.alert("✅ Bienvenido/a", `Sesión iniciada como ${cred.user.email}`);
+      info("Bienvenido/a", `Sesión iniciada como ${cred.user.email}`);
 
       closeLoginModal();
       resetLoginForm();
@@ -75,15 +87,15 @@ function HomeScreen() {
       // ✅ NO navegamos aquí. AuthGate detecta la sesión y muestra MainTabs automáticamente.
     } catch (e) {
       if (e.code === "auth/user-not-found") {
-        Alert.alert("No existe esa cuenta", "Regístrate primero.");
+        info("No existe esa cuenta", "Regístrate primero.");
       } else if (e.code === "auth/wrong-password") {
-        Alert.alert("Contraseña incorrecta", "Intenta de nuevo.");
+        info("Contraseña incorrecta", "Intenta de nuevo.");
       } else if (e.code === "auth/invalid-email") {
-        Alert.alert("Correo inválido", "Revisa el formato.");
+        info("Correo inválido", "Revisa el formato.");
       } else if (e.code === "auth/too-many-requests") {
-        Alert.alert("Demasiados intentos", "Intenta más tarde.");
+        info("Demasiados intentos", "Intenta más tarde.");
       } else {
-        Alert.alert("Error", e.message);
+        info("Error", e.message);
       }
     }
   };
@@ -130,7 +142,7 @@ function HomeScreen() {
 
   const submit = async () => {
     if (!canSubmit) {
-      Alert.alert(
+      info(
         "Revisa tus datos",
         "Asegúrate de completar todo correctamente (contraseña mínimo 6 caracteres)."
       );
@@ -154,36 +166,34 @@ function HomeScreen() {
         createdAt: serverTimestamp(),
       });
 
-      Alert.alert("✅ Registro listo", `Bienvenido/a, ${form.nombre}!`);
+      info("Registro listo", `Bienvenido/a, ${form.nombre}!`);
 
       closeModal();
       resetForm();
     } catch (e) {
       if (e.code === "auth/email-already-in-use") {
-        Alert.alert("Ese correo ya está registrado", "Prueba con otro correo.");
+        info("Ese correo ya está registrado", "Prueba con otro correo.");
       } else if (e.code === "auth/invalid-email") {
-        Alert.alert("Correo inválido", "Revisa el formato del correo.");
+        info("Correo inválido", "Revisa el formato del correo.");
       } else if (e.code === "auth/weak-password") {
-        Alert.alert("Contraseña débil", "Usa una contraseña más fuerte.");
+        info("Contraseña débil", "Usa una contraseña más fuerte.");
       } else {
-        Alert.alert("Error", e.message);
+        info("Error", e.message);
       }
     }
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.bgTopGlow} />
-      <View style={styles.bgBottomGlow} />
-
+    <View style={{ flex: 1, backgroundColor: "transparent" }}>
+      <LoveBubbleBackground />
+      <View style={styles.container}>
       <View style={styles.card}>
-        <View style={styles.logoBadge}>
-          <Text style={styles.logoBadgeText}>PL</Text>
-        </View>
-
-        <Text style={styles.logoText}>
-          Partner<Text style={styles.lifeText}>Life</Text>
-        </Text>
+        <Image
+          source={require("./assets/logo.png")}
+          style={styles.logoImage}
+          resizeMode="contain"
+          accessibilityLabel="PartnerLife"
+        />
         <Text style={styles.tagline}>Tu app para conectar y crecer</Text>
 
         <View style={styles.actions}>
@@ -205,8 +215,9 @@ function HomeScreen() {
         <Text style={styles.footer}>MoniJuro™</Text>
       </View>
 
-      <StatusBar style="light" translucent={false} />
-      
+      <StatusBar style="dark" translucent={false} />
+      </View>
+
       {/* MODAL REGISTRO */}
       <Modal
         visible={isRegisterOpen}
@@ -460,7 +471,12 @@ function AuthGate() {
   if (loading) return null;
 
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: "transparent" },
+      }}
+    >
       {user ? (
         <Stack.Screen name="MainScreen" component={MainTabs} />
       ) : (
@@ -473,11 +489,15 @@ function AuthGate() {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#0B1220" }}>
-        <NavigationContainer>
-          <AuthGate />
-        </NavigationContainer>
-      </SafeAreaView>
+      <DialogProvider>
+        <View style={{ flex: 1, backgroundColor: PL.bg }}>
+          <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }}>
+            <NavigationContainer theme={navigationTheme}>
+              <AuthGate />
+            </NavigationContainer>
+          </SafeAreaView>
+        </View>
+      </DialogProvider>
     </SafeAreaProvider>
   );
 }
@@ -485,72 +505,39 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0B1220',
+    backgroundColor: "transparent",
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
   },
-  bgTopGlow: {
-    position: 'absolute',
-    top: -120,
-    left: -80,
-    width: 260,
-    height: 260,
-    borderRadius: 200,
-    backgroundColor: 'rgba(236, 72, 153, 0.25)',
-  },
-  bgBottomGlow: {
-    position: 'absolute',
-    bottom: -140,
-    right: -90,
-    width: 320,
-    height: 320,
-    borderRadius: 240,
-    backgroundColor: 'rgba(59, 130, 246, 0.18)',
-  },
   card: {
     width: '100%',
     maxWidth: 420,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderRadius: 22,
-    paddingVertical: 26,
+    backgroundColor: 'rgba(255,255,255,0.97)',
+    borderRadius: 24,
+    paddingVertical: 28,
     paddingHorizontal: 22,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: PL.skyBorder,
     shadowColor: '#000',
-    shadowOpacity: 0.18,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 6,
+    shadowOpacity: 0.16,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 8,
   },
-  logoBadge: {
-    width: 54,
-    height: 54,
-    borderRadius: 16,
-    backgroundColor: '#111827',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
-  },
-  logoBadgeText: {
-    color: '#fff',
-    fontWeight: '800',
-    fontSize: 18,
-    letterSpacing: 0.5,
-  },
-  logoText: {
-    fontSize: 40,
-    fontWeight: '900',
-    letterSpacing: 0.2,
-    color: '#111827',
-  },
-  lifeText: {
-    color: '#ec4899',
+  logoImage: {
+    width: 220,
+    height: 140,
+    marginBottom: 8,
   },
   tagline: {
-    marginTop: 8,
+    marginTop: 4,
     fontSize: 14,
-    opacity: 0.7,
+    opacity: 0.72,
     textAlign: 'center',
+    color: PL.textSubtle,
+    fontWeight: '600',
   },
   actions: {
     width: '100%',
@@ -562,7 +549,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 14,
     alignItems: 'center',
-    backgroundColor: '#111827',
+    backgroundColor: PL.cta,
+    borderWidth: 1,
+    borderColor: PL.skyBorder,
   },
   primaryBtnText: {
     color: '#fff',
@@ -574,12 +563,12 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 14,
     alignItems: 'center',
-    backgroundColor: 'rgba(236,72,153,0.12)',
+    backgroundColor: PL.roseLight,
     borderWidth: 1,
-    borderColor: 'rgba(236,72,153,0.35)',
+    borderColor: PL.roseBorder,
   },
   secondaryBtnText: {
-    color: '#ec4899',
+    color: PL.rose,
     fontSize: 16,
     fontWeight: '800',
   },
@@ -615,7 +604,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: '900',
-    color: '#111827',
+    color: PL.ink,
   },
   closeBtn: {
     width: 34,
@@ -623,12 +612,12 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F3F4F6',
+    backgroundColor: PL.surfaceMuted,
   },
   closeBtnText: {
     fontSize: 16,
     fontWeight: '900',
-    color: '#111827',
+    color: PL.ink,
   },
   modalSubtitle: {
     fontSize: 13,
@@ -641,7 +630,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#111827',
+    color: PL.ink,
     marginTop: 6,
   },
   input: {
@@ -650,9 +639,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#FAFAFA',
-    color: '#111827',
+    borderColor: PL.skyBorder,
+    backgroundColor: PL.surfaceMuted,
+    color: PL.ink,
   },
   select: {
     width: '100%',
@@ -660,14 +649,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#FAFAFA',
+    borderColor: PL.skyBorder,
+    backgroundColor: PL.surfaceMuted,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   selectOpen: {
-    borderColor: 'rgba(236,72,153,0.55)',
+    borderColor: PL.roseBorder,
     shadowColor: '#000',
     shadowOpacity: 0.08,
     shadowRadius: 10,
@@ -675,7 +664,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   selectText: {
-    color: '#111827',
+    color: PL.ink,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -703,15 +692,15 @@ const styles = StyleSheet.create({
     borderBottomColor: '#F3F4F6',
   },
   dropdownItemActive: {
-    backgroundColor: 'rgba(236,72,153,0.10)',
+    backgroundColor: PL.roseLight,
   },
   dropdownItemText: {
-    color: '#111827',
+    color: PL.ink,
     fontSize: 14,
     fontWeight: '700',
   },
   dropdownItemTextActive: {
-    color: '#ec4899',
+    color: PL.rose,
   },
   modalActions: {
     marginTop: 16,
@@ -722,7 +711,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 14,
     alignItems: 'center',
-    backgroundColor: '#111827',
+    backgroundColor: PL.cta,
   },
   modalPrimaryBtnText: {
     color: '#fff',
@@ -734,10 +723,10 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 14,
     alignItems: 'center',
-    backgroundColor: '#F3F4F6',
+    backgroundColor: PL.surfaceMuted,
   },
   modalSecondaryBtnText: {
-    color: '#111827',
+    color: PL.ink,
     fontSize: 16,
     fontWeight: '800',
   },

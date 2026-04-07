@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   Pressable,
-  Alert,
   Modal,
   TextInput,
   TouchableWithoutFeedback,
@@ -30,8 +29,11 @@ import {
   getDocs,
 } from "firebase/firestore";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { PL } from "../theme/plTheme";
+import { useDialog } from "../context/DialogContext";
 
 export default function ListaScreen({ navigation }) {
+  const { info, confirm } = useDialog();
   const user = firebaseAuth.currentUser;
 
   const [profile, setProfile] = useState(null);
@@ -137,7 +139,7 @@ export default function ListaScreen({ navigation }) {
       },
       (e) => {
         setLoadingProfile(false);
-        Alert.alert("Error", e.message);
+        info("Error", e.message);
       }
     );
 
@@ -165,7 +167,7 @@ export default function ListaScreen({ navigation }) {
       },
       (e) => {
         setLoadingSavedItems(false);
-        Alert.alert("Error", e.message);
+        info("Error", e.message);
       }
     );
 
@@ -193,7 +195,7 @@ export default function ListaScreen({ navigation }) {
       },
       (e) => {
         setLoadingLists(false);
-        Alert.alert("Error", e.message);
+        info("Error", e.message);
       }
     );
 
@@ -220,7 +222,7 @@ export default function ListaScreen({ navigation }) {
       },
       (e) => {
         setLoadingSelectedItems(false);
-        Alert.alert("Error", e.message);
+        info("Error", e.message);
       }
     );
 
@@ -289,7 +291,7 @@ export default function ListaScreen({ navigation }) {
 
         await syncListMetrics(selectedList.id, nextItems);
       } catch (e) {
-        Alert.alert("Error", e?.message || "No se pudo actualizar la cantidad.");
+        info("Error", e?.message || "No se pudo actualizar la cantidad.");
       }
     },
     [hasGroup, selectedList?.id, selectedList?.isDaily, groupId, user?.uid, selectedListItems, syncListMetrics]
@@ -307,7 +309,7 @@ export default function ListaScreen({ navigation }) {
 
       await syncListMetrics(selectedList.id, []);
     } catch (e) {
-      Alert.alert("Error", e?.message || "No se pudo vaciar la lista.");
+      info("Error", e?.message || "No se pudo vaciar la lista.");
     }
   }, [hasGroup, groupId, selectedList?.id, syncListMetrics]);
 
@@ -457,7 +459,7 @@ export default function ListaScreen({ navigation }) {
     const price = priceRaw ? Number(priceRaw) : null;
 
     if (!name) {
-      Alert.alert("Dato requerido", "Escribe el nombre del artículo.");
+      info("Dato requerido", "Escribe el nombre del artículo.");
       return;
     }
 
@@ -474,7 +476,7 @@ export default function ListaScreen({ navigation }) {
 
       closeCreateSavedItem();
     } catch (e) {
-      Alert.alert("Error", e?.message || "No se pudo crear el artículo.");
+      info("Error", e?.message || "No se pudo crear el artículo.");
     } finally {
       setCreatingSavedItem(false);
     }
@@ -488,7 +490,7 @@ export default function ListaScreen({ navigation }) {
     const price = priceRaw ? Number(priceRaw) : null;
 
     if (!name) {
-      Alert.alert("Dato requerido", "Escribe el nombre del artículo.");
+      info("Dato requerido", "Escribe el nombre del artículo.");
       return;
     }
 
@@ -505,7 +507,7 @@ export default function ListaScreen({ navigation }) {
 
       closeEditSavedItem();
     } catch (e) {
-      Alert.alert("Error", e?.message || "No se pudo guardar.");
+      info("Error", e?.message || "No se pudo guardar.");
     } finally {
       setSavingSavedItemEdit(false);
     }
@@ -526,7 +528,7 @@ export default function ListaScreen({ navigation }) {
         const refDoc = doc(db, "groups", groupId, "savedItems", item.id);
         await deleteDoc(refDoc);
       } catch (e) {
-        Alert.alert("Error", e?.message || "No se pudo eliminar.");
+        info("Error", e?.message || "No se pudo eliminar.");
       }
     },
     [hasGroup, groupId]
@@ -539,7 +541,7 @@ export default function ListaScreen({ navigation }) {
     const name = String(listNameInput || "").trim();
 
     if (!name) {
-      Alert.alert("Dato requerido", "Escribe el nombre de la lista.");
+      info("Dato requerido", "Escribe el nombre de la lista.");
       return;
     }
 
@@ -560,7 +562,7 @@ export default function ListaScreen({ navigation }) {
 
       closeCreateList();
     } catch (e) {
-      Alert.alert("Error", e?.message || "No se pudo crear la lista.");
+      info("Error", e?.message || "No se pudo crear la lista.");
     } finally {
       setCreatingList(false);
     }
@@ -574,7 +576,7 @@ export default function ListaScreen({ navigation }) {
         const refDoc = doc(db, "groups", groupId, "lists", item.id);
         await deleteDoc(refDoc);
       } catch (e) {
-        Alert.alert("Error", e?.message || "No se pudo eliminar la lista.");
+        info("Error", e?.message || "No se pudo eliminar la lista.");
       }
     },
     [hasGroup, groupId]
@@ -589,7 +591,7 @@ export default function ListaScreen({ navigation }) {
     const price = priceRaw ? Number(priceRaw) : null;
 
     if (!name) {
-      Alert.alert("Dato requerido", "Escribe el nombre del artículo.");
+      info("Dato requerido", "Escribe el nombre del artículo.");
       return;
     }
 
@@ -622,7 +624,7 @@ export default function ListaScreen({ navigation }) {
       await syncListMetrics(selectedList.id, nextItems);
       closeAddManualItem();
     } catch (e) {
-      Alert.alert("Error", e?.message || "No se pudo agregar el artículo.");
+      info("Error", e?.message || "No se pudo agregar el artículo.");
     } finally {
       setCreatingManualItem(false);
     }
@@ -671,7 +673,7 @@ export default function ListaScreen({ navigation }) {
         await syncListMetrics(selectedList.id, nextItems);
         closeAddFromSaved();
       } catch (e) {
-        Alert.alert("Error", e?.message || "No se pudo agregar desde artículos.");
+        info("Error", e?.message || "No se pudo agregar desde artículos.");
       }
     },
     [user?.uid, hasGroup, groupId, selectedList?.id, selectedListItems, syncListMetrics]
@@ -697,7 +699,7 @@ export default function ListaScreen({ navigation }) {
 
         await syncListMetrics(selectedList.id, nextItems);
       } catch (e) {
-        Alert.alert("Error", e?.message || "No se pudo actualizar.");
+        info("Error", e?.message || "No se pudo actualizar.");
       }
     },
     [hasGroup, groupId, selectedList?.id, selectedListItems, syncListMetrics, user?.uid]
@@ -711,7 +713,7 @@ export default function ListaScreen({ navigation }) {
     const price = priceRaw ? Number(priceRaw) : null;
 
     if (!name) {
-      Alert.alert("Dato requerido", "Escribe el nombre del artículo.");
+      info("Dato requerido", "Escribe el nombre del artículo.");
       return;
     }
 
@@ -753,7 +755,7 @@ export default function ListaScreen({ navigation }) {
       await syncListMetrics(selectedList.id, nextItems);
       closeEditListItem();
     } catch (e) {
-      Alert.alert("Error", e?.message || "No se pudo guardar.");
+      info("Error", e?.message || "No se pudo guardar.");
     } finally {
       setSavingListItemEdit(false);
     }
@@ -781,7 +783,7 @@ export default function ListaScreen({ navigation }) {
         const nextItems = selectedListItems.filter((x) => x.id !== item.id);
         await syncListMetrics(selectedList.id, nextItems);
       } catch (e) {
-        Alert.alert("Error", e?.message || "No se pudo eliminar.");
+        info("Error", e?.message || "No se pudo eliminar.");
       }
     },
     [hasGroup, groupId, selectedList?.id, selectedListItems, syncListMetrics]
@@ -824,7 +826,7 @@ export default function ListaScreen({ navigation }) {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#0B1220" }} edges={["left", "right", "bottom"]}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }} edges={["left", "right"]}>
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.content}
@@ -947,10 +949,12 @@ export default function ListaScreen({ navigation }) {
                   <View style={styles.listActionsRow}>
                     <Pressable
                       onPress={() =>
-                        Alert.alert("Eliminar lista", "¿Deseas eliminar esta lista?", [
-                          { text: "Cancelar", style: "cancel" },
-                          { text: "Eliminar", style: "destructive", onPress: () => deleteList(it) },
-                        ])
+                        confirm("Eliminar lista", "¿Deseas eliminar esta lista?", {
+                          confirmText: "Eliminar",
+                          cancelText: "Cancelar",
+                          destructive: true,
+                          onConfirm: () => deleteList(it),
+                        })
                       }
                       style={({ pressed }) => [styles.deleteMiniBtn, pressed && { opacity: 0.7 }]}
                     >
@@ -1149,19 +1153,17 @@ export default function ListaScreen({ navigation }) {
                       <Pressable
                         style={({ pressed }) => [styles.dangerBtn, pressed && styles.pressed]}
                         onPress={() => {
-                          Alert.alert("Eliminar artículo", "¿Deseas eliminar este artículo?", [
-                            { text: "Cancelar", style: "cancel" },
-                            {
-                              text: "Eliminar",
-                              style: "destructive",
-                              onPress: async () => {
-                                try {
-                                  await deleteSavedItem(selectedSavedItem);
-                                  closeEditSavedItem();
-                                } catch { }
-                              },
+                          confirm("Eliminar artículo", "¿Deseas eliminar este artículo?", {
+                            confirmText: "Eliminar",
+                            cancelText: "Cancelar",
+                            destructive: true,
+                            onConfirm: async () => {
+                              try {
+                                await deleteSavedItem(selectedSavedItem);
+                                closeEditSavedItem();
+                              } catch {}
                             },
-                          ]);
+                          });
                         }}
                       >
                         <Text style={styles.dangerText}>Eliminar artículo</Text>
@@ -1328,14 +1330,12 @@ export default function ListaScreen({ navigation }) {
                   <View style={styles.extraActionsRow}>
                     <Pressable
                       onPress={() =>
-                        Alert.alert(
-                          "Vaciar lista",
-                          "¿Deseas eliminar todos los artículos de esta lista?",
-                          [
-                            { text: "Cancelar", style: "cancel" },
-                            { text: "Vaciar", style: "destructive", onPress: clearSelectedList },
-                          ]
-                        )
+                        confirm("Vaciar lista", "¿Deseas eliminar todos los artículos de esta lista?", {
+                          confirmText: "Vaciar",
+                          cancelText: "Cancelar",
+                          destructive: true,
+                          onConfirm: clearSelectedList,
+                        })
                       }
                       style={({ pressed }) => [styles.clearListBtn, pressed && styles.pressed]}
                     >
@@ -1444,10 +1444,12 @@ export default function ListaScreen({ navigation }) {
 
                                     <Pressable
                                       onPress={() =>
-                                        Alert.alert("Eliminar", "¿Deseas quitar este artículo de la lista?", [
-                                          { text: "Cancelar", style: "cancel" },
-                                          { text: "Eliminar", style: "destructive", onPress: () => deleteListItem(item) },
-                                        ])
+                                        confirm("Eliminar", "¿Deseas quitar este artículo de la lista?", {
+                                          confirmText: "Eliminar",
+                                          cancelText: "Cancelar",
+                                          destructive: true,
+                                          onConfirm: () => deleteListItem(item),
+                                        })
                                       }
                                       style={({ pressed }) => [styles.iconOnlyDeleteBtn, pressed && { opacity: 0.7 }]}
                                     >
@@ -1668,25 +1670,25 @@ export default function ListaScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0B1220" },
+  container: { flex: 1, backgroundColor: "transparent" },
   content: { padding: 16, paddingBottom: 26 },
 
   loadingWrap: {
     flex: 1,
-    backgroundColor: "#0B1220",
+    backgroundColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
     padding: 16,
   },
-  loadingText: { marginTop: 10, color: "rgba(255,255,255,0.75)", fontWeight: "800" },
+  loadingText: { marginTop: 10, color: PL.textMuted, fontWeight: "800" },
 
   headerCard: {
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: PL.headerCardBg,
     borderRadius: 20,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    borderColor: PL.headerCardBorder,
   },
 
   iconBadge: {
@@ -1700,23 +1702,23 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  headerTitle: { color: "#fff", fontWeight: "900", fontSize: 16 },
-  headerSub: { marginTop: 2, color: "rgba(255,255,255,0.70)", fontWeight: "700", fontSize: 12 },
+  headerTitle: { color: PL.ink, fontWeight: "900", fontSize: 16 },
+  headerSub: { marginTop: 2, color: PL.textMuted, fontWeight: "700", fontSize: 12 },
 
   kpiRow: { marginTop: 12, flexDirection: "row", gap: 10 },
 
   kpiBox: {
     flex: 1,
-    backgroundColor: "rgba(255,255,255,0.10)",
+    backgroundColor: PL.skyLight,
     borderRadius: 16,
     paddingVertical: 12,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    borderColor: PL.skyBorder,
   },
 
-  kpiLabel: { color: "rgba(255,255,255,0.75)", fontWeight: "800", fontSize: 11 },
-  kpiValue: { marginTop: 6, color: "#fff", fontWeight: "900", fontSize: 14 },
+  kpiLabel: { color: PL.textMuted, fontWeight: "800", fontSize: 11 },
+  kpiValue: { marginTop: 6, color: PL.ink, fontWeight: "900", fontSize: 14 },
 
   kpiBoxLight: {
     flex: 1,
@@ -1740,7 +1742,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 12,
     borderRadius: 999,
-    backgroundColor: "#111827",
+    backgroundColor: PL.cta,
   },
   ctaText: { color: "#fff", fontWeight: "900" },
 
@@ -1905,7 +1907,7 @@ const styles = StyleSheet.create({
 
   listActionsRow: { marginTop: 10, flexDirection: "row", justifyContent: "flex-end" },
 
-  footer: { marginTop: 6, color: "rgba(255,255,255,0.55)", textAlign: "center", fontSize: 12 },
+  footer: { marginTop: 6, color: PL.textSubtle, textAlign: "center", fontSize: 12 },
   pressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
 
   lockCard: {
@@ -1950,7 +1952,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#111827",
+    backgroundColor: PL.cta,
     shadowColor: "#000",
     shadowOpacity: 0.18,
     shadowRadius: 18,
@@ -2053,7 +2055,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 14,
     alignItems: "center",
-    backgroundColor: "#111827",
+    backgroundColor: PL.cta,
   },
 
   primaryText: { color: "#fff", fontSize: 16, fontWeight: "900" },
@@ -2149,7 +2151,7 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 14,
     borderRadius: 16,
-    backgroundColor: "#111827",
+    backgroundColor: PL.cta,
   },
 
   primaryMiniText: { color: "#fff", fontWeight: "900" },

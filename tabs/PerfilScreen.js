@@ -4,7 +4,6 @@ import {
     Text,
     StyleSheet,
     Pressable,
-    Alert,
     ActivityIndicator,
     ScrollView,
     Modal,
@@ -31,8 +30,11 @@ import { useNavigation } from "@react-navigation/native";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth as firebaseAuth, db, storage, functions } from "../firebaseConfig";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { PL } from "../theme/plTheme";
+import { useDialog } from "../context/DialogContext";
 
 export default function PerfilScreen() {
+    const { info, confirm } = useDialog();
     const navigation = useNavigation();
 
     const user = firebaseAuth.currentUser;
@@ -134,7 +136,7 @@ export default function PerfilScreen() {
             },
             (e) => {
                 setLoading(false);
-                Alert.alert("Error", e.message);
+                info("Error", e.message);
             }
         );
 
@@ -201,13 +203,13 @@ export default function PerfilScreen() {
 
         const cleaned = sanitizeNumeric(salaryInput);
         if (!cleaned) {
-            Alert.alert("Dato requerido", "Ingresa una cantidad.");
+            info("Dato requerido", "Ingresa una cantidad.");
             return;
         }
 
         const amount = Number(cleaned);
         if (!Number.isFinite(amount) || amount <= 0) {
-            Alert.alert("Cantidad inválida", "Ingresa un número mayor a 0.");
+            info("Cantidad inválida", "Ingresa un número mayor a 0.");
             return;
         }
 
@@ -229,7 +231,7 @@ export default function PerfilScreen() {
             }
 
             if (groupId && miSaldoStep > 0 && amount < miSaldoStep) {
-                Alert.alert(
+                info(
                     "Monto insuficiente",
                     `El ingreso debe ser al menos ${new Intl.NumberFormat("es-CR", {
                         style: "currency",
@@ -297,10 +299,10 @@ export default function PerfilScreen() {
                 return next;
             });
 
-            Alert.alert("✅ Listo", "Saldo sumado correctamente.");
+            info("✅ Listo", "Saldo sumado correctamente.");
             closeSalaryModal();
         } catch (e) {
-            Alert.alert("Error", e.message);
+            info("Error", e.message);
         }
     };
 
@@ -331,9 +333,9 @@ export default function PerfilScreen() {
             setProfile((prev) => ({ ...(prev || {}), photoURL: url }));
 
             closePhotoModal();
-            Alert.alert("✅ Foto actualizada", "Tu foto de perfil se guardó correctamente.");
+            info("✅ Foto actualizada", "Tu foto de perfil se guardó correctamente.");
         } catch (e) {
-            Alert.alert("Error", e.message);
+            info("Error", e.message);
         } finally {
             setUploadingPhoto(false);
         }
@@ -342,7 +344,7 @@ export default function PerfilScreen() {
     const pickFromGallery = async () => {
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (!perm.granted) {
-            Alert.alert("Permiso requerido", "Activa el permiso de galería para elegir una foto.");
+            info("Permiso requerido", "Activa el permiso de galería para elegir una foto.");
             return;
         }
 
@@ -362,7 +364,7 @@ export default function PerfilScreen() {
     const takeWithCamera = async () => {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
         if (!perm.granted) {
-            Alert.alert("Permiso requerido", "Activa el permiso de cámara para tomar una foto.");
+            info("Permiso requerido", "Activa el permiso de cámara para tomar una foto.");
             return;
         }
 
@@ -387,9 +389,9 @@ export default function PerfilScreen() {
 
             setProfile((prev) => ({ ...(prev || {}), photoURL: "" }));
             closePhotoModal();
-            Alert.alert("Listo", "Foto eliminada.");
+            info("Listo", "Foto eliminada.");
         } catch (e) {
-            Alert.alert("Error", e.message);
+            info("Error", e.message);
         }
     };
 
@@ -422,7 +424,7 @@ export default function PerfilScreen() {
     })();
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: "#0B1220" }} edges={["left", "right", "bottom"]}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }} edges={["left", "right"]}>
 
             <ScrollView style={styles.container} contentContainerStyle={styles.content}>
                 {/* Header */}
@@ -594,10 +596,12 @@ export default function PerfilScreen() {
                             <Pressable
                                 style={({ pressed }) => [styles.sheetBtnDanger, pressed && styles.sheetPressed]}
                                 onPress={() => {
-                                    Alert.alert("Eliminar foto", "¿Seguro que quieres eliminar tu foto de perfil?", [
-                                        { text: "Cancelar", style: "cancel" },
-                                        { text: "Eliminar", style: "destructive", onPress: removePhoto },
-                                    ]);
+                                    confirm("Eliminar foto", "¿Seguro que quieres eliminar tu foto de perfil?", {
+                                        confirmText: "Eliminar",
+                                        cancelText: "Cancelar",
+                                        destructive: true,
+                                        onConfirm: removePhoto,
+                                    });
                                 }}
                                 disabled={uploadingPhoto}
                             >
@@ -856,21 +860,21 @@ function HalfHeart({ side, color }) {
 /* ------------------ STYLES ------------------ */
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: "#0B1220" },
+    container: { flex: 1, backgroundColor: "transparent" },
     content: { padding: 16, paddingBottom: 26 },
 
-    loadingWrap: { flex: 1, backgroundColor: "#0B1220", alignItems: "center", justifyContent: "center", padding: 16 },
-    loadingText: { marginTop: 10, color: "rgba(255,255,255,0.75)" },
+    loadingWrap: { flex: 1, backgroundColor: "transparent", alignItems: "center", justifyContent: "center", padding: 16 },
+    loadingText: { marginTop: 10, color: PL.textMuted },
 
     header: {
-        backgroundColor: "rgba(255,255,255,0.08)",
+        backgroundColor: PL.headerCardBg,
         borderRadius: 20,
         padding: 16,
         flexDirection: "row",
         alignItems: "center",
         marginBottom: 14,
         borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.10)",
+        borderColor: PL.headerCardBorder,
     },
 
     avatarWrap: { width: 58, height: 58, borderRadius: 20 },
@@ -900,8 +904,8 @@ const styles = StyleSheet.create({
     },
 
     headerInfo: { marginLeft: 12, flex: 1 },
-    name: { color: "#fff", fontWeight: "900", fontSize: 18 },
-    email: { marginTop: 2, color: "rgba(255,255,255,0.70)" },
+    name: { color: PL.ink, fontWeight: "900", fontSize: 18 },
+    email: { marginTop: 2, color: PL.textMuted },
 
     card: {
         backgroundColor: "rgba(255,255,255,0.95)",
@@ -933,7 +937,7 @@ const styles = StyleSheet.create({
 
     actionBtn: {
         marginTop: 6,
-        backgroundColor: "#111827",
+        backgroundColor: PL.cta,
         borderRadius: 14,
         paddingVertical: 14,
         paddingHorizontal: 14,
@@ -947,7 +951,7 @@ const styles = StyleSheet.create({
     pressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
 
     hint: { marginTop: 10, color: "#6B7280", fontSize: 12, lineHeight: 16 },
-    footer: { marginTop: 8, color: "rgba(255,255,255,0.55)", textAlign: "center", fontSize: 12 },
+    footer: { marginTop: 8, color: PL.textSubtle, textAlign: "center", fontSize: 12 },
 
     // Modal
     modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.60)", justifyContent: "center", padding: 18 },
@@ -966,7 +970,7 @@ const styles = StyleSheet.create({
     previewStrong: { color: "#111827", fontWeight: "900" },
     previewSub: { marginTop: 8, fontSize: 12, color: "#6B7280", lineHeight: 17, fontWeight: "700" },
     modalActions: { marginTop: 16, gap: 10 },
-    modalPrimaryBtn: { width: "100%", paddingVertical: 14, borderRadius: 14, alignItems: "center", backgroundColor: "#111827" },
+    modalPrimaryBtn: { width: "100%", paddingVertical: 14, borderRadius: 14, alignItems: "center", backgroundColor: PL.cta },
     modalPrimaryBtnText: { color: "#fff", fontSize: 16, fontWeight: "900" },
     modalSecondaryBtn: { width: "100%", paddingVertical: 14, borderRadius: 14, alignItems: "center", backgroundColor: "#F3F4F6" },
     modalSecondaryBtnText: { color: "#111827", fontSize: 16, fontWeight: "800" },
@@ -983,7 +987,7 @@ const styles = StyleSheet.create({
     sheetBtnDanger: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "rgba(239,68,68,0.10)", paddingVertical: 14, paddingHorizontal: 12, borderRadius: 16, marginBottom: 10, borderWidth: 1, borderColor: "rgba(239,68,68,0.25)" },
     sheetIconDanger: { width: 34, height: 34, borderRadius: 12, backgroundColor: "#fff", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(239,68,68,0.25)" },
     sheetBtnDangerText: { fontWeight: "900", color: "#991B1B" },
-    sheetCancel: { backgroundColor: "#111827", paddingVertical: 14, borderRadius: 16, alignItems: "center", justifyContent: "center", marginTop: 2 },
+    sheetCancel: { backgroundColor: PL.cta, paddingVertical: 14, borderRadius: 16, alignItems: "center", justifyContent: "center", marginTop: 2 },
     sheetCancelText: { color: "#fff", fontWeight: "900" },
     sheetPressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
 
@@ -1071,7 +1075,7 @@ const styles = StyleSheet.create({
     findItem: { flexDirection: "row", gap: 10, paddingHorizontal: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#EEF2F7" },
     findText: { flex: 1, color: "#111827", fontWeight: "800", opacity: 0.85 },
 
-    findOkBtn: { marginTop: 12, backgroundColor: "#111827", borderRadius: 14, paddingVertical: 12, alignItems: "center" },
+    findOkBtn: { marginTop: 12, backgroundColor: PL.cta, borderRadius: 14, paddingVertical: 12, alignItems: "center" },
     findOkText: { color: "#fff", fontWeight: "900", fontSize: 15 },
 
     handleInputWrap: {
@@ -1360,7 +1364,7 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
         paddingHorizontal: 12,
         borderRadius: 999,
-        backgroundColor: "#111827",
+        backgroundColor: PL.cta,
     },
     partnerCtaText: { color: "#fff", fontWeight: "900" },
 

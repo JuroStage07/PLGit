@@ -5,7 +5,6 @@ import {
     Text,
     StyleSheet,
     Pressable,
-    Alert,
     Modal,
     TextInput,
     TouchableWithoutFeedback,
@@ -29,8 +28,11 @@ import {
     deleteDoc,
 } from "firebase/firestore";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { PL } from "../theme/plTheme";
+import { useDialog } from "../context/DialogContext";
 
 export default function AhorrosScreen({ navigation }) {
+    const { info, confirm } = useDialog();
     const user = firebaseAuth.currentUser;
 
     const [profile, setProfile] = useState(null);
@@ -73,7 +75,7 @@ export default function AhorrosScreen({ navigation }) {
             },
             (e) => {
                 setLoadingProfile(false);
-                Alert.alert("Error", e.message);
+                info("Error", e.message);
             }
         );
 
@@ -101,7 +103,7 @@ export default function AhorrosScreen({ navigation }) {
             },
             (e) => {
                 setLoadingItems(false);
-                Alert.alert("Error", e.message);
+                info("Error", e.message);
             }
         );
 
@@ -154,7 +156,7 @@ export default function AhorrosScreen({ navigation }) {
         if (!user?.uid) return;
 
         if (!hasGroup) {
-            Alert.alert("Sin grupo", "Primero crea un grupo en la pestaña Partner.");
+            info("Sin grupo", "Primero crea un grupo en la pestaña Partner.");
             return;
         }
 
@@ -162,11 +164,11 @@ export default function AhorrosScreen({ navigation }) {
         const amount = Number(sanitizeAmount(amountInput));
 
         if (!name) {
-            Alert.alert("Dato requerido", "Escribe el nombre del ahorro.");
+            info("Dato requerido", "Escribe el nombre del ahorro.");
             return;
         }
         if (!Number.isFinite(amount) || amount <= 0) {
-            Alert.alert("Monto inválido", "Ingresa un monto mayor a 0.");
+            info("Monto inválido", "Ingresa un monto mayor a 0.");
             return;
         }
 
@@ -183,10 +185,10 @@ export default function AhorrosScreen({ navigation }) {
                 createdByName: profile?.nombre || user?.displayName || "",
             });
 
-            Alert.alert("✅ Enviado", "Ahorro creado y enviado para aprobación.");
+            info("✅ Enviado", "Ahorro creado y enviado para aprobación.");
             closeCreate();
         } catch (e) {
-            Alert.alert("Error", e?.message || "No se pudo crear.");
+            info("Error", e?.message || "No se pudo crear.");
         } finally {
             setCreating(false);
         }
@@ -212,10 +214,10 @@ export default function AhorrosScreen({ navigation }) {
                 acceptedBy: user?.uid || "",
             });
 
-            Alert.alert("✅ Aprobado", "Ahorro aprobado.");
+            info("✅ Aprobado", "Ahorro aprobado.");
             closeReview();
         } catch (e) {
-            Alert.alert("Error", e?.message || "No se pudo aprobar.");
+            info("Error", e?.message || "No se pudo aprobar.");
         } finally {
             setReviewing(false);
         }
@@ -231,10 +233,10 @@ export default function AhorrosScreen({ navigation }) {
             // simple: borramos el pendiente
             await deleteDoc(ref);
 
-            Alert.alert("Listo", "Ahorro rechazado y eliminado.");
+            info("Listo", "Ahorro rechazado y eliminado.");
             closeReview();
         } catch (e) {
-            Alert.alert("Error", e?.message || "No se pudo rechazar.");
+            info("Error", e?.message || "No se pudo rechazar.");
         } finally {
             setReviewing(false);
         }
@@ -277,7 +279,7 @@ export default function AhorrosScreen({ navigation }) {
     }
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: "#0B1220" }} edges={["left", "right", "bottom"]}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }} edges={["left", "right"]}>
 
             <ScrollView style={styles.container} contentContainerStyle={styles.content}>
                 {/* ===== DASHBOARD ===== */}
@@ -545,10 +547,12 @@ export default function AhorrosScreen({ navigation }) {
 
                                             <Pressable
                                                 onPress={() => {
-                                                    Alert.alert("Rechazar", "¿Seguro que deseas rechazar este ahorro?", [
-                                                        { text: "Cancelar", style: "cancel" },
-                                                        { text: "Rechazar", style: "destructive", onPress: rejectSelected },
-                                                    ]);
+                                                    confirm("Rechazar", "¿Seguro que deseas rechazar este ahorro?", {
+                                                        confirmText: "Rechazar",
+                                                        cancelText: "Cancelar",
+                                                        destructive: true,
+                                                        onConfirm: rejectSelected,
+                                                    });
                                                 }}
                                                 disabled={reviewing}
                                                 style={({ pressed }) => [
@@ -578,19 +582,19 @@ export default function AhorrosScreen({ navigation }) {
 
 /* ------------------ STYLES (misma vibra del app) ------------------ */
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: "#0B1220" },
+    container: { flex: 1, backgroundColor: "transparent" },
     content: { padding: 16, paddingBottom: 26 },
 
-    loadingWrap: { flex: 1, backgroundColor: "#0B1220", alignItems: "center", justifyContent: "center", padding: 16 },
-    loadingText: { marginTop: 10, color: "rgba(255,255,255,0.75)", fontWeight: "800" },
+    loadingWrap: { flex: 1, backgroundColor: "transparent", alignItems: "center", justifyContent: "center", padding: 16 },
+    loadingText: { marginTop: 10, color: PL.textMuted, fontWeight: "800" },
 
     headerCard: {
-        backgroundColor: "rgba(255,255,255,0.08)",
+        backgroundColor: PL.headerCardBg,
         borderRadius: 20,
         padding: 16,
         marginBottom: 12,
         borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.10)",
+        borderColor: PL.headerCardBorder,
     },
 
     iconBadge: {
@@ -604,21 +608,21 @@ const styles = StyleSheet.create({
         justifyContent: "center",
     },
 
-    headerTitle: { color: "#fff", fontWeight: "900", fontSize: 16 },
-    headerSub: { marginTop: 2, color: "rgba(255,255,255,0.70)", fontWeight: "700", fontSize: 12 },
+    headerTitle: { color: PL.ink, fontWeight: "900", fontSize: 16 },
+    headerSub: { marginTop: 2, color: PL.textMuted, fontWeight: "700", fontSize: 12 },
 
     kpiRow: { marginTop: 12, flexDirection: "row", gap: 10 },
     kpiBox: {
         flex: 1,
-        backgroundColor: "rgba(255,255,255,0.10)",
+        backgroundColor: PL.skyLight,
         borderRadius: 16,
         paddingVertical: 12,
         paddingHorizontal: 12,
         borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.10)",
+        borderColor: PL.skyBorder,
     },
-    kpiLabel: { color: "rgba(255,255,255,0.75)", fontWeight: "800", fontSize: 11 },
-    kpiValue: { marginTop: 6, color: "#fff", fontWeight: "900", fontSize: 14 },
+    kpiLabel: { color: PL.textMuted, fontWeight: "800", fontSize: 11 },
+    kpiValue: { marginTop: 6, color: PL.ink, fontWeight: "900", fontSize: 14 },
 
     ctaBtn: {
         flexDirection: "row",
@@ -627,7 +631,7 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
         paddingHorizontal: 12,
         borderRadius: 999,
-        backgroundColor: "#111827",
+        backgroundColor: PL.cta,
     },
     ctaText: { color: "#fff", fontWeight: "900" },
 
@@ -704,7 +708,7 @@ const styles = StyleSheet.create({
     itemAmount: { fontWeight: "900", color: "#111827" },
     itemMini: { marginTop: 4, fontWeight: "900", color: "#6B7280", fontSize: 11 },
 
-    footer: { marginTop: 6, color: "rgba(255,255,255,0.55)", textAlign: "center", fontSize: 12 },
+    footer: { marginTop: 6, color: PL.textSubtle, textAlign: "center", fontSize: 12 },
     pressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
 
     // bloqueo sin grupo
@@ -740,7 +744,7 @@ const styles = StyleSheet.create({
         borderRadius: 999,
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: "#111827",
+        backgroundColor: PL.cta,
         shadowColor: "#000",
         shadowOpacity: 0.18,
         shadowRadius: 18,
@@ -779,7 +783,7 @@ const styles = StyleSheet.create({
     preview: { marginTop: 8, fontSize: 12, color: "#6B7280" },
     previewStrong: { color: "#111827", fontWeight: "900" },
 
-    primaryBtn: { width: "100%", paddingVertical: 14, borderRadius: 14, alignItems: "center", backgroundColor: "#111827" },
+    primaryBtn: { width: "100%", paddingVertical: 14, borderRadius: 14, alignItems: "center", backgroundColor: PL.cta },
     primaryText: { color: "#fff", fontSize: 16, fontWeight: "900" },
     secondaryBtn: { width: "100%", paddingVertical: 14, borderRadius: 14, alignItems: "center", backgroundColor: "#F3F4F6" },
     secondaryText: { color: "#111827", fontSize: 16, fontWeight: "800" },
@@ -823,7 +827,7 @@ const styles = StyleSheet.create({
         gap: 8,
         paddingVertical: 14,
         borderRadius: 14,
-        backgroundColor: "#111827",
+        backgroundColor: PL.cta,
     },
     approveText: { color: "#fff", fontWeight: "900" },
 

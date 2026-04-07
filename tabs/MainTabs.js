@@ -6,7 +6,6 @@ import {
   Text,
   StyleSheet,
   Pressable,
-  Alert,
   Modal,
   TouchableWithoutFeedback,
   KeyboardAvoidingView,
@@ -15,7 +14,7 @@ import {
   Keyboard,
   ScrollView,
   ActivityIndicator,
-} from 'react-native';
+} from "react-native";
 
 import { Calendar, LocaleConfig } from "react-native-calendars";
 
@@ -33,6 +32,9 @@ import {
 
 import { db, auth as firebaseAuth } from "../firebaseConfig";
 import { signOut } from "firebase/auth";
+import { PL } from "../theme/plTheme";
+import LoveBubbleBackground from "../components/LoveBubbleBackground";
+import { useDialog } from "../context/DialogContext";
 
 import { useNavigation } from "@react-navigation/native";
 import { onSnapshot } from "firebase/firestore";
@@ -61,20 +63,29 @@ LocaleConfig.locales['es'] = {
 };
 LocaleConfig.defaultLocale = 'es';
 
-const logout = async () => {
-  try {
-    await signOut(firebaseAuth);
-    Alert.alert("Sesión cerrada", "Has cerrado sesión correctamente.");
-  } catch (e) {
-    Alert.alert("Error", e.message);
-  }
-};
-
-// Placeholder
 const ListaDeseos = () => (
   <View style={styles.screen}>
-    <Text style={styles.title}>Lista de deseos</Text>
-    <Text style={styles.placeholderSub}>Próximamente</Text>
+    <View style={styles.deseosGlowRose} pointerEvents="none" />
+    <View style={styles.deseosGlowSky} pointerEvents="none" />
+    <View style={styles.deseosCard}>
+      <View style={styles.deseosIconRing}>
+        <View style={styles.deseosIconInner}>
+          <FontAwesome5 name="gift" size={26} color={PL.roseBright} />
+        </View>
+      </View>
+      <Text style={styles.deseosTitle}>Lista de deseos</Text>
+      <Text style={styles.deseosSub}>
+        Muy pronto podrás anotar regalos, metas y sorpresas para tu pareja, con un toque especial.
+      </Text>
+      <View style={styles.deseosDots}>
+        <View style={[styles.deseosDot, { backgroundColor: PL.rose }]} />
+        <View style={[styles.deseosDot, { backgroundColor: PL.sky }]} />
+        <View style={[styles.deseosDot, { backgroundColor: PL.roseBright }]} />
+      </View>
+      <View style={styles.deseosBadge}>
+        <Text style={styles.deseosBadgeText}>Próximamente</Text>
+      </View>
+    </View>
   </View>
 );
 
@@ -124,7 +135,7 @@ function RequireGroup({ children }) {
       <View style={styles.lockDarkWrap}>
         <View style={styles.lockCard}>
           <View style={styles.lockBadge}>
-            <Ionicons name="lock-closed-outline" size={18} color="#111827" />
+            <Ionicons name="lock-closed-outline" size={18} color={PL.skyDeep} />
           </View>
 
           <Text style={styles.lockTitleDark}>Funciones bloqueadas</Text>
@@ -153,6 +164,7 @@ function RequireGroup({ children }) {
 }
 
 export default function MainTabs() {
+  const { info, confirm } = useDialog();
   const user = firebaseAuth.currentUser;
 
   //calendario 
@@ -302,10 +314,10 @@ export default function MainTabs() {
         await loadCounts();
         await loadTodayNotesAndPopup();
       } catch (e) {
-        Alert.alert("Error", e.message);
+        info("Error", e.message);
       }
     })();
-  }, [groupId, cleanupOldNotes, loadCounts, loadTodayNotesAndPopup]);
+  }, [groupId, cleanupOldNotes, loadCounts, loadTodayNotesAndPopup, info]);
 
   /** ✅ al abrir modal calendario: refrescar conteos (por si cambió algo) */
   useEffect(() => {
@@ -316,10 +328,10 @@ export default function MainTabs() {
         await cleanupOldNotes();
         await loadCounts();
       } catch (e) {
-        Alert.alert("Error", e.message);
+        info("Error", e.message);
       }
     })();
-  }, [isCalendarOpen, groupId, cleanupOldNotes, loadCounts]);
+  }, [isCalendarOpen, groupId, cleanupOldNotes, loadCounts, info]);
 
   /** ✅ tocar día: abrir lista del día + cargar items */
   const onDayPress = async (day) => {
@@ -330,7 +342,7 @@ export default function MainTabs() {
     try {
       await loadDayNotes(dateStr);
     } catch (e) {
-      Alert.alert("Error", e.message);
+      info("Error", e.message);
     }
   };
 
@@ -342,11 +354,11 @@ export default function MainTabs() {
     const timeTrim = noteTime.trim();
 
     if (!trimmed) {
-      Alert.alert("Dato requerido", "Escribe una nota.");
+      info("Dato requerido", "Escribe una nota.");
       return;
     }
     if (!isValidTime(timeTrim)) {
-      Alert.alert("Hora inválida", "Usa formato 24h: HH:MM (ej: 08:30).");
+      info("Hora inválida", "Usa formato 24h: HH:MM (ej: 08:30).");
       return;
     }
 
@@ -378,7 +390,7 @@ export default function MainTabs() {
       setNoteTime("");
       Keyboard.dismiss();
     } catch (e) {
-      Alert.alert("Error", e.message);
+      info("Error", e.message);
     }
   };
 
@@ -411,7 +423,7 @@ export default function MainTabs() {
         setNotesCountByDate((prev) => ({ ...prev, [selectedDay]: count }));
       }
     } catch (e) {
-      Alert.alert("Error", e.message);
+      info("Error", e.message);
     }
   };
 
@@ -425,12 +437,12 @@ export default function MainTabs() {
           customStyles: {
             container: {
               borderWidth: 2,
-              borderColor: "#EF4444",
-              backgroundColor: "transparent",
+              borderColor: PL.sky,
+              backgroundColor: "rgba(56,189,248,0.08)",
               borderRadius: 16,
             },
             text: {
-              color: "#111827",
+              color: PL.ink,
               fontWeight: "800",
             },
           },
@@ -444,7 +456,7 @@ export default function MainTabs() {
         ...(marked[todayStr]?.customStyles || {}),
         text: {
           ...(marked[todayStr]?.customStyles?.text || {}),
-          color: "#ec4899",
+          color: PL.rose,
           fontWeight: "900",
         },
       },
@@ -456,7 +468,7 @@ export default function MainTabs() {
         customStyles: {
           container: {
             ...(marked[selectedDay]?.customStyles?.container || {}),
-            borderColor: "#111827",
+            borderColor: PL.roseBright,
           },
           text: {
             ...(marked[selectedDay]?.customStyles?.text || {}),
@@ -470,10 +482,12 @@ export default function MainTabs() {
   }, [notesCountByDate, todayStr, selectedDay]);
 
   return (
-
-    <>
+    <View style={{ flex: 1, backgroundColor: "transparent" }}>
+      <LoveBubbleBackground />
       <Tab.Navigator
         initialRouteName="Perfil"
+        sceneContainerStyle={{ backgroundColor: "transparent", flex: 1 }}
+        style={{ backgroundColor: "transparent", flex: 1 }}
         screenOptions={({ route }) => ({
           headerTitleAlign: "center",
           headerStatusBarHeight: 0,
@@ -481,12 +495,28 @@ export default function MainTabs() {
             height: 52,
             elevation: 0,
             shadowOpacity: 0,
+            backgroundColor: PL.headerBg,
+            borderBottomWidth: 1,
+            borderBottomColor: PL.headerBorder,
           },
-          headerTitleAlign: 'center',
+          headerTintColor: PL.text,
+          headerTitleStyle: { fontWeight: "800", fontSize: 17, color: PL.text },
           tabBarShowLabel: false,
-          tabBarActiveTintColor: '#111827',
-          tabBarInactiveTintColor: '#9CA3AF',
-          tabBarStyle: { height: 62, paddingBottom: 10, paddingTop: 10 },
+          tabBarActiveTintColor: PL.tabActive,
+          tabBarInactiveTintColor: PL.tabInactive,
+          tabBarStyle: {
+            height: 64,
+            paddingBottom: 10,
+            paddingTop: 8,
+            backgroundColor: PL.tabBarBg,
+            borderTopWidth: 1,
+            borderTopColor: PL.skyBorder,
+            shadowColor: "#f472b6",
+            shadowOpacity: 0.12,
+            shadowRadius: 12,
+            shadowOffset: { width: 0, height: -4 },
+            elevation: 8,
+          },
 
           headerLeft: () => (
             <Pressable
@@ -498,21 +528,26 @@ export default function MainTabs() {
               ]}
               hitSlop={10}
             >
-              <Ionicons name="calendar-outline" size={22} color="#111827" />
+              <Ionicons name="calendar-outline" size={22} color={PL.sky} />
             </Pressable>
           ),
 
           headerRight: () => (
             <Pressable
               onPress={() => {
-                Alert.alert(
-                  "Cerrar sesión",
-                  "¿Seguro que deseas cerrar sesión?",
-                  [
-                    { text: "Cancelar", style: "cancel" },
-                    { text: "Cerrar", style: "destructive", onPress: logout },
-                  ]
-                );
+                confirm("Cerrar sesión", "¿Seguro que deseas cerrar sesión?", {
+                  confirmText: "Cerrar",
+                  cancelText: "Cancelar",
+                  destructive: true,
+                  onConfirm: async () => {
+                    try {
+                      await signOut(firebaseAuth);
+                      info("Sesión cerrada", "Has cerrado sesión correctamente.");
+                    } catch (e) {
+                      info("Error", e.message);
+                    }
+                  },
+                });
               }}
               style={({ pressed }) => [
                 styles.headerBtn,
@@ -520,7 +555,7 @@ export default function MainTabs() {
               ]}
               hitSlop={10}
             >
-              <Ionicons name="log-out-outline" size={22} color="#111827" />
+              <Ionicons name="log-out-outline" size={22} color={PL.roseBright} />
             </Pressable>
           ),
 
@@ -631,12 +666,12 @@ export default function MainTabs() {
                       onDayPress={onDayPress}
                       theme={{
                         backgroundColor: "#fff",
-                        calendarBackground: "#fff",
-                        textSectionTitleColor: "#6B7280",
-                        dayTextColor: "#111827",
-                        textDisabledColor: "#D1D5DB",
-                        arrowColor: "#111827",
-                        monthTextColor: "#111827",
+                        calendarBackground: "#f8fafc",
+                        textSectionTitleColor: PL.textSubtle,
+                        dayTextColor: PL.ink,
+                        textDisabledColor: "#cbd5e1",
+                        arrowColor: PL.skyDeep,
+                        monthTextColor: PL.ink,
                         textDayFontWeight: "700",
                         textMonthFontWeight: "900",
                         textDayHeaderFontWeight: "800",
@@ -720,10 +755,12 @@ export default function MainTabs() {
 
                               <Pressable
                                 onPress={() => {
-                                  Alert.alert("Eliminar nota", "¿Deseas eliminar esta nota?", [
-                                    { text: "Cancelar", style: "cancel" },
-                                    { text: "Eliminar", style: "destructive", onPress: () => deleteItem(item.id) },
-                                  ]);
+                                  confirm("Eliminar nota", "¿Deseas eliminar esta nota?", {
+                                    confirmText: "Eliminar",
+                                    cancelText: "Cancelar",
+                                    destructive: true,
+                                    onConfirm: () => deleteItem(item.id),
+                                  });
                                 }}
                                 style={({ pressed }) => [styles.deleteMiniBtn, pressed && { opacity: 0.7 }]}
                               >
@@ -760,7 +797,7 @@ export default function MainTabs() {
               <View style={styles.todayCard}>
                 <View style={styles.todayHeader}>
                   <View style={styles.todayBadge}>
-                    <Ionicons name="notifications-outline" size={16} color="#111827" />
+                    <Ionicons name="notifications-outline" size={16} color={PL.skyDeep} />
                   </View>
 
                   <View style={{ flex: 1 }}>
@@ -798,14 +835,86 @@ export default function MainTabs() {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
-    </>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  title: { fontSize: 22, fontWeight: '700', },
-  placeholderSub: { marginTop: 10, fontSize: 14, color: '#6B7280', fontWeight: '600' },
+  screen: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    overflow: 'hidden',
+  },
+  deseosGlowRose: {
+    position: 'absolute',
+    top: '18%',
+    left: -60,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: PL.bgGlowRose,
+  },
+  deseosGlowSky: {
+    position: 'absolute',
+    bottom: '12%',
+    right: -50,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: PL.bgGlowSky,
+  },
+  deseosCard: {
+    width: '100%',
+    maxWidth: 400,
+    backgroundColor: PL.cardOnDark,
+    borderRadius: 24,
+    paddingVertical: 28,
+    paddingHorizontal: 22,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: PL.glassBorder,
+  },
+  deseosIconRing: {
+    padding: 3,
+    borderRadius: 999,
+    backgroundColor: PL.skyLight,
+    borderWidth: 1,
+    borderColor: PL.skyBorder,
+  },
+  deseosIconInner: {
+    width: 72,
+    height: 72,
+    borderRadius: 999,
+    backgroundColor: PL.roseLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: PL.roseBorder,
+  },
+  deseosTitle: { fontSize: 22, fontWeight: '900', color: PL.text, letterSpacing: 0.2 },
+  deseosSub: {
+    marginTop: 12,
+    fontSize: 14,
+    color: PL.textMuted,
+    fontWeight: '600',
+    textAlign: 'center',
+    lineHeight: 21,
+  },
+  deseosDots: { flexDirection: 'row', gap: 8, marginTop: 18 },
+  deseosDot: { width: 8, height: 8, borderRadius: 4 },
+  deseosBadge: {
+    marginTop: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    backgroundColor: PL.skyMuted,
+    borderWidth: 1,
+    borderColor: PL.skyBorder,
+  },
+  deseosBadgeText: { fontSize: 12, fontWeight: '900', color: PL.sky, letterSpacing: 0.5 },
 
   headerBtn: {
     marginRight: 12,
@@ -814,7 +923,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F3F4F6',
+    backgroundColor: PL.glass,
+    borderWidth: 1,
+    borderColor: PL.glassBorder,
   },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.60)', justifyContent: 'center', padding: 18 },
@@ -848,28 +959,28 @@ const styles = StyleSheet.create({
   },
 
   calendarHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
-  calendarTitle: { fontSize: 18, fontWeight: '900', color: '#111827' },
+  calendarTitle: { fontSize: 18, fontWeight: '900', color: PL.ink },
 
-  closeBtn: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F3F4F6' },
-  closeBtnText: { fontSize: 16, fontWeight: '900', color: '#111827' },
+  closeBtn: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: PL.surfaceMuted },
+  closeBtnText: { fontSize: 16, fontWeight: '900', color: PL.ink },
 
-  calendarSubtitle: { fontSize: 13, opacity: 0.75, marginBottom: 10, color: "#111827" },
+  calendarSubtitle: { fontSize: 13, opacity: 0.85, marginBottom: 10, color: PL.textSubtle },
 
-  calendarWrap: { borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: "#E5E7EB" },
+  calendarWrap: { borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: PL.skyBorder },
 
-  calendarOkBtn: { marginTop: 12, backgroundColor: "#111827", borderRadius: 14, paddingVertical: 12, alignItems: "center" },
+  calendarOkBtn: { marginTop: 12, backgroundColor: PL.cta, borderRadius: 14, paddingVertical: 12, alignItems: "center" },
   calendarOkText: { color: "#fff", fontWeight: "900", fontSize: 15 },
 
-  label: { fontSize: 12, fontWeight: "900", color: "#111827" },
+  label: { fontSize: 12, fontWeight: "900", color: PL.ink },
 
   timeInput: {
     height: 46,
     borderRadius: 14,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#FAFAFA',
-    color: '#111827',
+    borderColor: PL.skyBorder,
+    backgroundColor: PL.surfaceMuted,
+    color: PL.ink,
     fontWeight: '800',
   },
 
@@ -880,14 +991,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#FAFAFA',
-    color: '#111827',
+    borderColor: PL.skyBorder,
+    backgroundColor: PL.surfaceMuted,
+    color: PL.ink,
     fontWeight: '700',
     textAlignVertical: 'top',
   },
 
-  noteHint: { marginTop: 10, fontSize: 12, color: "#6B7280", lineHeight: 16, textAlign: "center" },
+  noteHint: { marginTop: 10, fontSize: 12, color: PL.textSubtle, lineHeight: 16, textAlign: "center" },
 
   // Modal hoy y lista
   todayCard: {
@@ -914,33 +1025,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  todayTitle: { fontSize: 16, fontWeight: '900', color: '#111827' },
-  todaySub: { marginTop: 2, fontSize: 12, color: '#6B7280', fontWeight: '700' },
+  todayTitle: { fontSize: 16, fontWeight: '900', color: PL.ink },
+  todaySub: { marginTop: 2, fontSize: 12, color: PL.textSubtle, fontWeight: '700' },
 
-  todayList: { borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB', overflow: 'hidden' },
+  todayList: { borderRadius: 16, borderWidth: 1, borderColor: PL.skyBorder, overflow: 'hidden' },
   todayItem: {
     flexDirection: 'row',
     gap: 10,
     paddingHorizontal: 12,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#EEF2F7',
-    backgroundColor: '#FAFAFA',
+    borderBottomColor: PL.borderLight,
+    backgroundColor: PL.surfaceMuted,
   },
   todayDot: {
     width: 10,
     height: 10,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: '#EF4444',
+    borderColor: PL.rose,
     marginTop: 6,
   },
   todayRowTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  todayItemTitle: { fontWeight: '900', color: '#111827' },
-  todayTime: { fontWeight: '900', color: '#111827', opacity: 0.8, fontSize: 12 },
-  todayText: { color: '#111827', fontWeight: '700', opacity: 0.85 },
+  todayItemTitle: { fontWeight: '900', color: PL.ink },
+  todayTime: { fontWeight: '900', color: PL.skyDeep, opacity: 0.95, fontSize: 12 },
+  todayText: { color: PL.ink, fontWeight: '700', opacity: 0.85 },
 
-  todayOkBtn: { marginTop: 12, backgroundColor: '#111827', borderRadius: 14, paddingVertical: 12, alignItems: 'center' },
+  todayOkBtn: { marginTop: 12, backgroundColor: PL.cta, borderRadius: 14, paddingVertical: 12, alignItems: 'center' },
   todayOkText: { color: '#fff', fontWeight: '900', fontSize: 15 },
 
   deleteMiniBtn: {
@@ -960,7 +1071,7 @@ const styles = StyleSheet.create({
 
   lockWrap: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
@@ -969,7 +1080,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 18,
     fontWeight: "900",
-    color: "#111827",
+    color: PL.ink,
     textAlign: "center",
   },
   lockSub: {
@@ -988,7 +1099,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#111827",
+    backgroundColor: PL.cta,
     shadowColor: "#000",
     shadowOpacity: 0.18,
     shadowRadius: 18,
@@ -999,13 +1110,13 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 12,
     fontWeight: "900",
-    color: "#111827",
+    color: PL.ink,
     opacity: 0.8,
   },
 
   lockDarkWrap: {
     flex: 1,
-    backgroundColor: "#0B1220",
+    backgroundColor: 'transparent',
     alignItems: "center",
     justifyContent: "center",
     padding: 16,
@@ -1015,10 +1126,10 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 520,
     backgroundColor: "rgba(255,255,255,0.97)",
-    borderRadius: 18,
+    borderRadius: 22,
     padding: 18,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: PL.skyBorder,
     shadowColor: "#000",
     shadowOpacity: 0.16,
     shadowRadius: 16,
@@ -1031,9 +1142,9 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 14,
-    backgroundColor: "rgba(236,72,153,0.12)",
+    backgroundColor: PL.roseLight,
     borderWidth: 1,
-    borderColor: "rgba(236,72,153,0.22)",
+    borderColor: PL.roseBorder,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1042,7 +1153,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 16,
     fontWeight: "900",
-    color: "#111827",
+    color: PL.ink,
     textAlign: "center",
   },
 
@@ -1063,7 +1174,9 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#111827",
+    backgroundColor: PL.cta,
+    borderWidth: 2,
+    borderColor: PL.roseBorder,
     shadowColor: "#000",
     shadowOpacity: 0.18,
     shadowRadius: 18,
@@ -1075,7 +1188,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 12,
     fontWeight: "900",
-    color: "#111827",
+    color: PL.ink,
     opacity: 0.8,
   },
 });

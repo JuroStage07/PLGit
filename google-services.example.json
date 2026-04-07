@@ -1,13 +1,29 @@
 {
-  "type": "service_account",
-  "project_id": "partnerlife-d28f9",
-  "private_key_id": "34a896450522f8111a79f7f813c11bfce6041fe6",
-  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCc++OYJXB1w6+V\nD/N+Cg50U1eKR6KjlmZiYh34VuQ/Q1zUx+ad5qOAm9KLPF0FX1o+TSEO/JvKqAPF\nhKWpPhroOOoFtyYU0HV44WWpiqCaa61/e3v62WrV6tx69lafrlsOQih6jNHLThAz\n668C2I8vSKqsnZYMQPJiauPOHzlWQtMy4v7KepqDl9SkekwPR54l8KgAFe+f8CDj\nll5EYLrxHVPXw6Mwxv26xkGAvvJyPgB33RwVvipM6driZ4V+7cfChcCew3/r3+JA\nrH/zU35xJWJigBirGihNHPwcTUVOyw+KbJol9voW8p7b9omfJDcg36L3Z9zz+0K4\nNI/1aRmzAgMBAAECggEAAXYOvkHK9C2oGrkVSR0K2WZVMEJObztdJJlJMiCM61HT\nMV/S87FL4EyS/xzGuOAUVPQe1KbhRFegAVykthiP4410EC2OOy9diIyAh710lTtf\nWApsMv+HEQqolrRoRgA3dMCE4+8fnMbTO8h7zoj5fDUu8YBd/yszllrsV+TOgdEF\nrsVifnu0iBhp/FSvx6o/lEHqQ4uudaX/hpA6ZYyDLO9hASDWBO9eTecC0jcYdimk\n+pOPALmqoQx7tITabis+b1ht4Dpb2ldXDelr1g++Z7S8jsC+TDvy+toPYORqR4Qb\n58mIUg5P86cXopBnctFC6e/4keonyc4KN+PobvywIQKBgQDLSQN5tBX+uP3ydLC9\nmJFgMy1UCHwQc1x7Rv2laU9TdIeWUy4NLcMhrvqVJ7pTT15JIeQYGZ3UMjSNqDv0\n4KXe0ElhRpXf0dXPVsjo+/R1X6Xrkoqcqv0/BxkTItAeIv7dYmsA4D2P0KL0IgyE\nnCuRwBZf6+qWPBItVi3y1aObewKBgQDFsTBnxA267kvKX1kJsyH+yQIPXgYlHvSE\npEEHAiK5+Woeq0LZQWIvcnuhws91evXmPxW618DsC/j430liBn8NoUvOs5F5MrgS\nY2T0WcA0GxdGWDneogC0DwV9+moyHIbF7KYQoclcBT5W752iS7JA/jYp6Zx05iWB\nsAgoFGOpKQKBgQCDVPRt2C6tlg5aaZEVrE+fevC57ZFZf24sJr0P9G1PWWWPdMW3\ntezvAgDaBASYdhpP3RljiIky4gyZyCqUFd6TiLUfp16EbyhW/5ZlDwHsIpMrEk2C\n0eUypv9IIaGbFrjZhg/jTPv4wa3FU4oK0mpDi3npFp1D2iNULu0YiXVdqQKBgQCd\nBhOTqCbbvqFWmgtn5+/tpw1K1Xz+CSthG/JGtcyNeW1v9MpBNGzfkQhgQRN1lfgx\nLRR+dxbWpt/YFcr84HoUgnRrNzgqUz3f5TDv4UYIXShMiJFWo8j5PCE5oiitqvjl\nxwVUmp0MyWFtvh+wJH3un7y358WNGKzb6M1hwGg0mQKBgD+sHp1ccgl0+ENVtORt\nlBkLeAsfLNEqLOvF+dYxkTi/ZZRfo27XRD81vSWiuhPDwyzTxe5msjCl4/EGJzf9\nrsG0MI0ZMNV76AHXs3LMerO2xnS1IWCfG9FWl7QLkMwxn7v0F1NXxZWuQRAPnpJ6\ncwfsjwPNZNIouK2q7wCv9hUW\n-----END PRIVATE KEY-----\n",
-  "client_email": "firebase-adminsdk-fbsvc@partnerlife-d28f9.iam.gserviceaccount.com",
-  "client_id": "115137734707223485196",
-  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-  "token_uri": "https://oauth2.googleapis.com/token",
-  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40partnerlife-d28f9.iam.gserviceaccount.com",
-  "universe_domain": "googleapis.com"
+  "project_info": {
+    "project_number": "YOUR_PROJECT_NUMBER",
+    "project_id": "partnerlife-d28f9",
+    "storage_bucket": "partnerlife-d28f9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:YOUR_SENDER_ID:android:YOUR_ANDROID_APP_ID",
+        "android_client_info": {
+          "package_name": "com.monijuro.PartnerLife"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "PASTE_WEB_API_KEY_FROM_FIREBASE_CONSOLE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
 }

@@ -5,7 +5,6 @@ import {
   Text,
   StyleSheet,
   Pressable,
-  Alert,
   Modal,
   TextInput,
   TouchableWithoutFeedback,
@@ -32,6 +31,8 @@ import {
   getDoc,
   runTransaction,
 } from "firebase/firestore";
+import { PL } from "../theme/plTheme";
+import { useDialog } from "../context/DialogContext";
 
 function clampPaymentDay(year, monthIndex, day) {
   const last = new Date(year, monthIndex + 1, 0).getDate();
@@ -127,6 +128,7 @@ function deductSaldoMi(saldo, mi, amount) {
 }
 
 export default function RebajosMensualesScreen() {
+  const { info, confirm } = useDialog();
   const navigation = useNavigation();
   const user = firebaseAuth.currentUser;
 
@@ -189,7 +191,7 @@ export default function RebajosMensualesScreen() {
       },
       (e) => {
         setLoadingProfile(false);
-        Alert.alert("Error", e.message);
+        info("Error", e.message);
       }
     );
     return () => unsub();
@@ -212,7 +214,7 @@ export default function RebajosMensualesScreen() {
       },
       (e) => {
         setLoadingItems(false);
-        Alert.alert("Error", e?.message || "No se pudieron cargar los rebajos.");
+        info("Error", e?.message || "No se pudieron cargar los rebajos.");
       }
     );
     return () => unsub();
@@ -277,15 +279,15 @@ export default function RebajosMensualesScreen() {
     const amount = Number(sanitizeAmount(amountInput));
 
     if (!name) {
-      Alert.alert("Dato requerido", "Escribe el nombre del rebajo.");
+      info("Dato requerido", "Escribe el nombre del rebajo.");
       return;
     }
     if (!Number.isFinite(pd) || pd < 1 || pd > 31) {
-      Alert.alert("Día de pago", "Indica un día entre 1 y 31.");
+      info("Día de pago", "Indica un día entre 1 y 31.");
       return;
     }
     if (!Number.isFinite(amount) || amount <= 0) {
-      Alert.alert("Monto inválido", "Ingresa un monto mayor a 0.");
+      info("Monto inválido", "Ingresa un monto mayor a 0.");
       return;
     }
 
@@ -301,10 +303,10 @@ export default function RebajosMensualesScreen() {
         createdBy: user.uid,
         createdByName: profile?.nombre || user?.displayName || "",
       });
-      Alert.alert("✅ Enviado", "Rebajo enviado para aprobación de tu compañero.");
+      info("✅ Enviado", "Rebajo enviado para aprobación de tu compañero.");
       closeCreate();
     } catch (e) {
-      Alert.alert("Error", e?.message || "No se pudo crear.");
+      info("Error", e?.message || "No se pudo crear.");
     } finally {
       setCreating(false);
     }
@@ -336,10 +338,10 @@ export default function RebajosMensualesScreen() {
         acceptedAt: serverTimestamp(),
         acceptedBy: user?.uid || "",
       });
-      Alert.alert("✅ Aprobado", "Rebajo aprobado.");
+      info("✅ Aprobado", "Rebajo aprobado.");
       closeReview();
     } catch (e) {
-      Alert.alert("Error", e?.message || "No se pudo aprobar.");
+      info("Error", e?.message || "No se pudo aprobar.");
     } finally {
       setReviewing(false);
     }
@@ -350,10 +352,10 @@ export default function RebajosMensualesScreen() {
     try {
       setReviewing(true);
       await deleteDoc(doc(db, "groups", groupId, "monthlyRebates", selected.id));
-      Alert.alert("Listo", "Rebajo rechazado y eliminado.");
+      info("Listo", "Rebajo rechazado y eliminado.");
       closeReview();
     } catch (e) {
-      Alert.alert("Error", e?.message || "No se pudo rechazar.");
+      info("Error", e?.message || "No se pudo rechazar.");
     } finally {
       setReviewing(false);
     }
@@ -364,7 +366,7 @@ export default function RebajosMensualesScreen() {
       if (!user?.uid || !rebate?.id || !hasGroup) return;
       const payAmount = Number(rawPayAmount);
       if (!Number.isFinite(payAmount) || payAmount <= 0) {
-        Alert.alert("Monto", "Ingresa un monto mayor a 0.");
+        info("Monto", "Ingresa un monto mayor a 0.");
         return;
       }
 
@@ -467,17 +469,17 @@ export default function RebajosMensualesScreen() {
         });
 
         setPartialInputByRebate((prev) => ({ ...prev, [rebate.id]: "" }));
-        Alert.alert("✅ Listo", "Pago aplicado.");
+        info("✅ Listo", "Pago aplicado.");
       } catch (e) {
         const code = e?.message;
         if (code === "CLOSED") {
-          Alert.alert("Mes cerrado", "Este rebajo ya se completó este mes. Podrás pagar de nuevo el próximo mes.");
+          info("Mes cerrado", "Este rebajo ya se completó este mes. Podrás pagar de nuevo el próximo mes.");
         } else if (code === "ZERO") {
-          Alert.alert("Nada que pagar", "El objetivo del mes ya está cubierto o el monto es 0.");
+          info("Nada que pagar", "El objetivo del mes ya está cubierto o el monto es 0.");
         } else if (code === "NO_FUNDS") {
-          Alert.alert("Saldo insuficiente", "No tienes saldo suficiente para este pago.");
+          info("Saldo insuficiente", "No tienes saldo suficiente para este pago.");
         } else {
-          Alert.alert("Error", e?.message || "No se pudo aplicar.");
+          info("Error", e?.message || "No se pudo aplicar.");
         }
       } finally {
         setPayingId(null);
@@ -489,7 +491,7 @@ export default function RebajosMensualesScreen() {
   const completeRemainder = useCallback(
     (rebate, remaining) => {
       if (remaining <= 0) {
-        Alert.alert("Listo", "No hay saldo pendiente este mes.");
+        info("Listo", "No hay saldo pendiente este mes.");
         return;
       }
       const label = new Intl.NumberFormat("es-CR", {
@@ -497,13 +499,14 @@ export default function RebajosMensualesScreen() {
         currency: "CRC",
         maximumFractionDigits: 0,
       }).format(remaining);
-      Alert.alert(
+      confirm(
         "Completar mes",
         `Se descontará ${label} de tu saldo (general y Mi Saldo si hace falta) y se cerrará el mes para este rebajo.`,
-        [
-          { text: "Cancelar", style: "cancel" },
-          { text: "Continuar", onPress: () => applyPayment(rebate, remaining) },
-        ]
+        {
+          confirmText: "Continuar",
+          cancelText: "Cancelar",
+          onConfirm: () => applyPayment(rebate, remaining),
+        }
       );
     },
     [applyPayment]
@@ -540,7 +543,7 @@ export default function RebajosMensualesScreen() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#0B1220" }} edges={["left", "right", "bottom"]}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }} edges={["left", "right"]}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <View style={styles.headerCard}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
@@ -923,10 +926,12 @@ export default function RebajosMensualesScreen() {
                       </Pressable>
                       <Pressable
                         onPress={() => {
-                          Alert.alert("Rechazar", "¿Eliminar esta propuesta?", [
-                            { text: "Cancelar", style: "cancel" },
-                            { text: "Rechazar", style: "destructive", onPress: rejectSelected },
-                          ]);
+                          confirm("Rechazar", "¿Eliminar esta propuesta?", {
+                            confirmText: "Rechazar",
+                            cancelText: "Cancelar",
+                            destructive: true,
+                            onConfirm: rejectSelected,
+                          });
                         }}
                         disabled={reviewing}
                         style={({ pressed }) => [
@@ -955,18 +960,18 @@ export default function RebajosMensualesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0B1220" },
+  container: { flex: 1, backgroundColor: "transparent" },
   content: { padding: 16, paddingBottom: 26 },
-  loadingWrap: { flex: 1, backgroundColor: "#0B1220", alignItems: "center", justifyContent: "center" },
-  loadingText: { marginTop: 10, color: "rgba(255,255,255,0.75)", fontWeight: "800" },
+  loadingWrap: { flex: 1, backgroundColor: "transparent", alignItems: "center", justifyContent: "center" },
+  loadingText: { marginTop: 10, color: PL.textMuted, fontWeight: "800" },
 
   headerCard: {
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: PL.headerCardBg,
     borderRadius: 20,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    borderColor: PL.headerCardBorder,
   },
   iconBadge: {
     width: 36,
@@ -978,8 +983,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  headerTitle: { color: "#fff", fontWeight: "900", fontSize: 16 },
-  headerSub: { marginTop: 2, color: "rgba(255,255,255,0.70)", fontWeight: "700", fontSize: 12 },
+  headerTitle: { color: PL.ink, fontWeight: "900", fontSize: 16 },
+  headerSub: { marginTop: 2, color: PL.textMuted, fontWeight: "700", fontSize: 12 },
   ctaBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -987,7 +992,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 999,
-    backgroundColor: "#111827",
+    backgroundColor: PL.cta,
   },
   ctaText: { color: "#fff", fontWeight: "900" },
 
@@ -1164,7 +1169,7 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 12,
     borderRadius: 14,
-    backgroundColor: "#111827",
+    backgroundColor: PL.cta,
   },
   payBtnInline: { marginTop: 0, paddingHorizontal: 14, minWidth: 110 },
   payBtnText: { color: "#fff", fontWeight: "900", fontSize: 14 },
@@ -1178,11 +1183,11 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: "rgba(255,255,255,0.95)",
     borderWidth: 1.5,
-    borderColor: "#111827",
+    borderColor: PL.skyBorder,
   },
-  completeBtnText: { color: "#111827", fontWeight: "900", fontSize: 13, flex: 1, textAlign: "center" },
+  completeBtnText: { color: PL.skyDeep, fontWeight: "900", fontSize: 13, flex: 1, textAlign: "center" },
 
-  footer: { marginTop: 6, color: "rgba(255,255,255,0.55)", textAlign: "center", fontSize: 12 },
+  footer: { marginTop: 6, color: PL.textSubtle, textAlign: "center", fontSize: 12 },
   pressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
 
   lockCard: {
@@ -1213,7 +1218,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#111827",
+    backgroundColor: PL.cta,
     elevation: 6,
   },
   lockHint: { marginTop: 10, color: "#111827", fontWeight: "900", opacity: 0.75, textAlign: "center" },
@@ -1250,7 +1255,7 @@ const styles = StyleSheet.create({
   },
   moneyPrefix: { paddingHorizontal: 14, fontWeight: "900", color: "#111827", opacity: 0.9, fontSize: 16 },
   moneyInput: { flex: 1, height: 48, paddingHorizontal: 10, color: "#111827", fontWeight: "800", fontSize: 16 },
-  primaryBtn: { width: "100%", paddingVertical: 14, borderRadius: 14, alignItems: "center", backgroundColor: "#111827" },
+  primaryBtn: { width: "100%", paddingVertical: 14, borderRadius: 14, alignItems: "center", backgroundColor: PL.cta },
   primaryText: { color: "#fff", fontSize: 16, fontWeight: "900" },
   secondaryBtn: { width: "100%", paddingVertical: 14, borderRadius: 14, alignItems: "center", backgroundColor: "#F3F4F6" },
   secondaryText: { color: "#111827", fontSize: 16, fontWeight: "800" },
@@ -1281,7 +1286,7 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 12,
     borderRadius: 14,
-    backgroundColor: "#111827",
+    backgroundColor: PL.cta,
   },
   approveText: { color: "#fff", fontWeight: "900" },
   rejectBtn: {
