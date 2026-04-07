@@ -11,9 +11,10 @@ const appJson = require("./app.json");
 module.exports = ({ config }) => ({
   ...config,
   expo: {
+    ...appJson.expo,
     ...config.expo,
     // Debe coincidir con el slug del proyecto en expo.dev / EAS (extra.eas.projectId).
-    slug: appJson.expo?.slug || "PartnerLife",
+    slug: appJson.expo?.slug || config.expo?.slug || "PartnerLife",
     scheme: "partnerlife",
     plugins: [
       "@react-native-firebase/app",
@@ -33,10 +34,13 @@ module.exports = ({ config }) => ({
         process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
         "207640060980-qm9oct69f0ntdtqaar338sbbcf2pjat5.apps.googleusercontent.com",
     },
-  },
-  android: {
-    ...config.android,
-    googleServicesFile:
-      process.env.GOOGLE_SERVICES_JSON || "./google-services.json",
+    android: {
+      ...appJson.expo?.android,
+      ...config.expo?.android,
+      googleServicesFile:
+        process.env.GOOGLE_SERVICES_JSON ||
+        appJson.expo?.android?.googleServicesFile ||
+        "./google-services.json",
+    },
   },
 });
