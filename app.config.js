@@ -12,6 +12,8 @@ module.exports = ({ config }) => ({
   ...config,
   expo: {
     ...config.expo,
+    // Debe coincidir con el slug del proyecto en expo.dev / EAS (extra.eas.projectId).
+    slug: appJson.expo?.slug || "PartnerLife",
     scheme: "partnerlife",
     plugins: [
       "@react-native-firebase/app",
